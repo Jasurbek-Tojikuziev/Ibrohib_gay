@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ## NOTICE
 
 This repository contains the public FTC SDK for the DECODE (2025-2026) competition season.
@@ -1697,3 +1698,7 @@ Changes include:
  * The API for the Legacy Module and Core Device Interface Module have been updated.
    - Support for encoders with the Legacy Module is now working.
  * The hardware loop has been updated for better performance.
+=======
+# Ibrohib_gay
+Ibrohim, love you and fuck you.
+>>>>>>> f7fd2cf89730671a8a387a970c603f0a893d0fe8
