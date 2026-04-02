@@ -38,11 +38,15 @@ public class TurretSubsystem {
     private static final double TURRET_MIN_ANGLE = -135.0;
     private static final double TURRET_MAX_ANGLE =  135.0;
 
-    // ── PID coefficients — public static so FTC Dashboard @Config can edit them live ──
+    // ── PID coefficients (auto-aim mode) — tunable via FTC Dashboard ─────────
     public static double kP = 0.035;
     public static double kI = 0.0;
     public static double kD = 0.001;
     public static double kF = 0.0;
+
+    // ── PF coefficients (locked/hold mode) — tunable via FTC Dashboard ───────
+    public static double kP_lock = 0.05;
+    public static double kF_lock = 0.01;
 
     // ── Motor output clamp ───────────────────────────────────────────────────
     private static final double MAX_POWER     =  1.0;
@@ -84,6 +88,14 @@ public class TurretSubsystem {
      *
      * @param degrees target angle; positive = counterclockwise (verify direction on robot)
      */
+    /** Temporarily override the PID gains used in the next update() call(s). */
+    public void setPID(double p, double i, double d, double f) {
+        kP = p;
+        kI = i;
+        kD = d;
+        kF = f;
+    }
+
     public void setTargetAngle(double degrees) {
         targetAngle = Math.max(TURRET_MIN_ANGLE, Math.min(TURRET_MAX_ANGLE, degrees));
     }
@@ -145,6 +157,14 @@ public class TurretSubsystem {
      */
     public double getTargetAngle() {
         return targetAngle;
+    }
+
+    /**
+     * Cuts motor power and lets BRAKE mode hold position passively.
+     * Use this when active PID correction is not desired (e.g. fixed-turret modes).
+     */
+    public void brake() {
+        motor.setPower(0);
     }
 
     /**

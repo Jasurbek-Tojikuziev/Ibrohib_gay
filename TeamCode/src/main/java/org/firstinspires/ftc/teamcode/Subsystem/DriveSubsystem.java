@@ -57,8 +57,8 @@ public class DriveSubsystem {
         // Normalize so no value exceeds 1.0
         double max = Math.max(1.0,
                 Math.max(Math.abs(fl),
-                Math.max(Math.abs(fr),
-                Math.max(Math.abs(bl), Math.abs(br)))));
+                        Math.max(Math.abs(fr),
+                                Math.max(Math.abs(bl), Math.abs(br)))));
 
         leftFront.setPower(fl / max);
         rightFront.setPower(fr / max);

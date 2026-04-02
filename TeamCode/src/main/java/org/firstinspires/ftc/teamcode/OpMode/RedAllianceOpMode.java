@@ -39,11 +39,13 @@ public class RedAllianceOpMode extends OpMode {
     private ShooterController      shooterController;
     private TurretController       turretController;
 
-    // Rising-edge state for gamepad2 left trigger (full reset)
-    private boolean lastLeftTrigger2 = false;
+    // Rising-edge state for gamepad2 right trigger (full reset)
+    private boolean lastRightTrigger2 = false;
 
     @Override
     public void init() {
+        ShooterSubsystem.TARGET_VELOCITY = 1350.0;
+
         // Localization — reads PoseStorage if Auto ran, otherwise uses Red start position
         localization = new LocalizationSubsystem(hardwareMap, true);
 
@@ -54,10 +56,11 @@ public class RedAllianceOpMode extends OpMode {
         intakeSubsystem   = new IntakeSubsystem(hardwareMap);
         driveController   = new MecanumDriveController(new DriveSubsystem(hardwareMap));
         intakeController  = new IntakeController(intakeSubsystem);
-        shooterController = new ShooterController(new ShooterSubsystem(hardwareMap, telemetry), intakeSubsystem, telemetry);
+        ShooterSubsystem shooterSubsystem = new ShooterSubsystem(hardwareMap, telemetry);
+        shooterController = new ShooterController(shooterSubsystem, intakeSubsystem, telemetry);
 
         // Turret controller — aims at Red basket (143.0, 143.0 in)
-        turretController = new TurretController(localization, turretSubsystem, true, telemetry);
+        turretController = new TurretController(localization, turretSubsystem, shooterSubsystem, true, telemetry);
 
         // Confirm Pinpoint received the starting position.
         // initX should be ≈ 87.620, initY ≈ 8.298, initHeading° ≈ 0 (raw, before offset)
@@ -81,14 +84,14 @@ public class RedAllianceOpMode extends OpMode {
         // ── Drive (gamepad 1) ─────────────────────────────────────────────────
         driveController.update(gamepad1);
 
-        // ── Full reset (gamepad2 left trigger, rising edge) ──────────────────
+        // ── Full reset (gamepad2 right trigger, rising edge) ─────────────────
         // Resets odometry to Red alliance start position and re-zeros turret encoder.
-        boolean leftTrigger2 = gamepad2.left_trigger > 0.5;
-        if (leftTrigger2 && !lastLeftTrigger2) {
+        boolean rightTrigger2 = gamepad2.right_trigger > 0.5;
+        if (rightTrigger2 && !lastRightTrigger2) {
             localization.resetToStart();
             turretController.resetZero();
         }
-        lastLeftTrigger2 = leftTrigger2;
+        lastRightTrigger2 = rightTrigger2;
 
         // ── Intake & Shooter (gamepad 1 + 2) ─────────────────────────────────
         // IntakeController runs first; ShooterController runs second so it can

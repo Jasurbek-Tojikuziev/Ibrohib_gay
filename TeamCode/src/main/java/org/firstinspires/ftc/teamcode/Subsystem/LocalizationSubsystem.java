@@ -38,14 +38,14 @@ public class LocalizationSubsystem {
     private static final String DEVICE_NAME = "pinpoint";
 
     // Red Alliance fixed starting position (inches, heading in radians)
-    private static final double RED_START_X       =  87.620;
-    private static final double RED_START_Y       =   8.298;
-    private static final double RED_START_HEADING = Math.toRadians(90.0);
+    private static final double RED_START_X       = 129.121;
+    private static final double RED_START_Y       =  79.103;
+    private static final double RED_START_HEADING = Math.toRadians(0.0);
 
     // Blue Alliance fixed starting position (inches, heading in radians)
-    private static final double BLUE_START_X       =  56.136;
-    private static final double BLUE_START_Y       =   8.298;
-    private static final double BLUE_START_HEADING = Math.toRadians(90.0);
+    private static final double BLUE_START_X       =  15.402;
+    private static final double BLUE_START_Y       =  79.103;
+    private static final double BLUE_START_HEADING = Math.toRadians(180.0);
 
     // Pod physical offsets from robot center (inches).
     // X pod is 2.756 in to the right of center → negative per Pinpoint convention.

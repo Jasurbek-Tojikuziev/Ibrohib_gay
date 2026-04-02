@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.Subsystem;
 
-import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -24,23 +23,22 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  * PIDF coefficients (RUN_USING_ENCODER) should be tuned for your specific motor.
  * Default target velocity: 1500 ticks/sec.
  */
-@Config
 public class ShooterSubsystem {
 
     // Tunable via FTC Dashboard
-    public static double PIDF_P         = 65.0;
+    public static double PIDF_P         = 130;
     public static double PIDF_I         = 0.0;
-    public static double PIDF_D         = 5.0;
-    public static double PIDF_F         = 14.2400;
+    public static double PIDF_D         = 0.0;
+    public static double PIDF_F         = 13.4;
     public static double TARGET_VELOCITY = 1000.0; // ticks per second
-    public static double HOOD_POSITION   = 0.0;    // servo position [0.0, 1.0]
+    public static double HOOD_POSITION   = 0.3;    // servo position [0.0, 1.0]
     public static double HOOD_DROP_TIME   = 0.3;   // seconds into shoot sequence for first hood drop
     public static double HOOD_DROP_TIME_2 = 0.45;  // seconds into shoot sequence for second hood drop
     public static double HOOD_DROP_1      = 0.12;  // first drop amount
     public static double HOOD_DROP_2      = 0.2;   // second drop amount (cumulative from base)
 
-    public static final double GATE_CLOSED        = 0.0;
-    public static final double GATE_OPEN          = 0.29;
+    public static final double GATE_CLOSED        = 1.0;
+    public static final double GATE_OPEN          = 0.74;
     public static final double COMPRESSION_CLOSED = 1.0;
     public static final double COMPRESSION_OPEN   = 0.87;
 
@@ -52,10 +50,7 @@ public class ShooterSubsystem {
     private final Servo     hoodServo;
     private final Telemetry telemetry;
 
-    // Last-applied PIDF values — used to detect dashboard changes
-    private double lastP = PIDF_P, lastI = PIDF_I, lastD = PIDF_D, lastF = PIDF_F;
-
-    private double currentTargetVelocity = TARGET_VELOCITY;
+    private double lastP = PIDF_P, lastF = PIDF_F;
 
     public ShooterSubsystem(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
@@ -74,7 +69,7 @@ public class ShooterSubsystem {
 
         shooterMaster.setPIDFCoefficients(
                 DcMotor.RunMode.RUN_USING_ENCODER,
-                new PIDFCoefficients(PIDF_P, PIDF_I, PIDF_D, PIDF_F)
+                new PIDFCoefficients(PIDF_P, 0, 0, PIDF_F)
         );
 
         // Slave has no encoder – driven open-loop, power synced to master each loop
@@ -82,12 +77,20 @@ public class ShooterSubsystem {
 
         gateServo        = hardwareMap.get(Servo.class, "shooterStop");
         compressionServo = hardwareMap.get(Servo.class, "intakeStop");
-        hoodServo        = hardwareMap.get(Servo.class, "shooterHood");
+
+        Servo tempHood = null;
+        try { tempHood = hardwareMap.get(Servo.class, "shooterHood"); } catch (Exception ignored) {}
+        hoodServo = tempHood;
 
         // Park servos at default positions
         gateServo.setPosition(GATE_CLOSED);
         compressionServo.setPosition(COMPRESSION_CLOSED);
-        hoodServo.setPosition(0.0);
+    }
+
+    /** Reverse both shooter motor directions. Call after construction when wiring is opposite. */
+    public void reverseMotors() {
+        shooterMaster.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterSlave.setDirection(DcMotorSimple.Direction.FORWARD);
     }
 
     /** Start shooter motors at target velocity. Call once on op-mode start. */
@@ -107,14 +110,15 @@ public class ShooterSubsystem {
      * Must be called every loop() while motors are running.
      */
     public void updateMotorSync() {
-        // Slave has no encoder; compute feedforward power using the same F term
-        // the master's PIDF uses: output = F * velocity / 32767
-        double feedForwardPower = (PIDF_F * currentTargetVelocity) / 32767.0;
-        shooterSlave.setPower(feedForwardPower);
+        double currentVelocity = shooterMaster.getVelocity();
+        double error           = TARGET_VELOCITY - currentVelocity;
+        double computedPower   = (PIDF_F * TARGET_VELOCITY + PIDF_P * error) / 32767.0;
 
-        telemetry.addData("motor1 velocity", shooterMaster.getVelocity());
+        shooterSlave.setPower(computedPower);
+
+        telemetry.addData("motor1 velocity", currentVelocity);
         telemetry.addData("motor2 velocity", shooterSlave.getVelocity());
-        telemetry.addData("motor1 power",    shooterMaster.getPower());
+        telemetry.addData("computed power",  computedPower);
         telemetry.addData("motor2 power",    shooterSlave.getPower());
     }
 
@@ -130,7 +134,6 @@ public class ShooterSubsystem {
 
     /** Set master motor to a specific velocity (ticks/sec). */
     public void setVelocity(double velocity) {
-        currentTargetVelocity = velocity;
         shooterMaster.setVelocity(velocity);
     }
 
@@ -139,12 +142,13 @@ public class ShooterSubsystem {
      * Call every loop().
      */
     public void updatePIDF() {
-        if (PIDF_P != lastP || PIDF_I != lastI || PIDF_D != lastD || PIDF_F != lastF) {
+        if (PIDF_P != lastP || PIDF_F != lastF) {
             shooterMaster.setPIDFCoefficients(
                     DcMotor.RunMode.RUN_USING_ENCODER,
-                    new PIDFCoefficients(PIDF_P, PIDF_I, PIDF_D, PIDF_F)
+                    new PIDFCoefficients(PIDF_P, 0, 0, PIDF_F)
             );
-            lastP = PIDF_P; lastI = PIDF_I; lastD = PIDF_D; lastF = PIDF_F;
+            lastP = PIDF_P;
+            lastF = PIDF_F;
         }
     }
 
@@ -157,7 +161,7 @@ public class ShooterSubsystem {
     }
 
     public void setHoodPosition(double position) {
-        hoodServo.setPosition(position);
+        if (hoodServo != null) hoodServo.setPosition(position);
     }
 }
 
