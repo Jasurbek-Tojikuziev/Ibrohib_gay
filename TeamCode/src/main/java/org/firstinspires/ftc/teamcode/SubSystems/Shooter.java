@@ -234,28 +234,6 @@ public class Shooter {
         }
     }
 
-    /**
-     * ЗАКОММЕНТИРОВАНО: Динамически обновляет Hood на основе расстояния от Vision
-     * Вызывать в loop() для автоматической настройки
-     *
-     * СЕЙЧАС ИСПОЛЬЗУЕТСЯ ТОЛЬКО ODOMETRY в Robot.java
-     */
-    /*
-    public void updateHoodDynamic(Vision vision) {
-        double distance = 0;
-
-        // Vision - если камера видит AprilTag
-        if (vision != null && vision.hasTargetTag()) {
-            distance = vision.getTargetDistance();
-        }
-
-        // Обновляем Hood если есть валидное расстояние
-        if (distance > 0) {
-            updateHood(distance);
-        }
-    }
-    */
-
     // -----------------------------------------------------------------------
     // Motion compensation API
     // -----------------------------------------------------------------------

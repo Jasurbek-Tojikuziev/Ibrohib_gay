@@ -1,24 +1,20 @@
 package org.firstinspires.ftc.teamcode.Controllers;
 
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.SubSystems.Intake;
 import org.firstinspires.ftc.teamcode.SubSystems.Shooter;
-import org.firstinspires.ftc.teamcode.SubSystems.Vision;
 
 public class ShooterController {
     public Gamepad gamepad;
     private Shooter shooter;
-    private Vision vision;
 
     private boolean prevRightBumper = false;
     private boolean prevDpadDown = false;
 
-    public ShooterController(Gamepad gamepad, Shooter shooter,  Vision vision) {
+    public ShooterController(Gamepad gamepad, Shooter shooter) {
         this.gamepad = gamepad;
         this.shooter = shooter;
-        this.vision = vision;
     }
 
     public void update(Intake intake) {
@@ -41,7 +37,7 @@ public class ShooterController {
             shooter.startShoot();
         }
 
-        // Hood и Velocity обновляются от Vision (приоритет) с fallback на Odometry в Robot.update()
+        // Hood и Velocity обновляются от Odometry в Robot.update()
 
         // Обновление FSM шутера
         shooter.updateFSM(intake);

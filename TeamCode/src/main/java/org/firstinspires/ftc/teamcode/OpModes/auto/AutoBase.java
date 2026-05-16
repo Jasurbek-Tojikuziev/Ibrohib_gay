@@ -10,7 +10,6 @@ import org.firstinspires.ftc.teamcode.SubSystems.Intake;
 import org.firstinspires.ftc.teamcode.SubSystems.Localizer;
 import org.firstinspires.ftc.teamcode.SubSystems.Shooter;
 import org.firstinspires.ftc.teamcode.SubSystems.Turret;
-import org.firstinspires.ftc.teamcode.SubSystems.Vision;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 /**
@@ -34,7 +33,6 @@ public abstract class AutoBase extends OpMode {
     protected Intake intake;
     protected Shooter shooter;
     protected Turret turret;
-    protected Vision vision;
     protected Localizer localizer;
     protected AutoHelper h;
     protected Timer pathTimer;
@@ -76,14 +74,10 @@ public abstract class AutoBase extends OpMode {
         intake = new Intake(hardwareMap);
         shooter = new Shooter(hardwareMap);
 
-        vision = new Vision();
-        vision.init(hardwareMap);
-        vision.setAlliance(isRedAlliance());
-
         follower = Constants.createFollower(hardwareMap);
         follower.update(); // CRITICAL: init Pinpoint before setting pose
 
-        turret = new Turret(hardwareMap, vision, follower);
+        turret = new Turret(hardwareMap, follower);
 
         follower.setStartingPose(getStartPose());
 
@@ -100,7 +94,6 @@ public abstract class AutoBase extends OpMode {
 
     @Override
     public void start() {
-        vision.start();
         pathTimer.resetTimer();
 
         turret.setTargetAngle(0.0);
@@ -114,7 +107,7 @@ public abstract class AutoBase extends OpMode {
     public void loop() {
         follower.update();
         localizer.update();
-        turret.maintainWithVisionCorrection();
+        turret.maintainTarget();
 
         updateShooter();
 
@@ -144,6 +137,5 @@ public abstract class AutoBase extends OpMode {
         if (intake != null) intake.off();
         if (shooter != null) shooter.off();
         if (turret != null) turret.stop();
-        if (vision != null) vision.stop();
     }
 }

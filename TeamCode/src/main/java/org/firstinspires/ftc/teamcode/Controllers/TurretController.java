@@ -3,13 +3,11 @@ package org.firstinspires.ftc.teamcode.Controllers;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.SubSystems.Turret;
-import org.firstinspires.ftc.teamcode.SubSystems.Vision;
 
 public class TurretController {
     public Gamepad gamepad;
     public Gamepad gamepad1; // Для калибровки (dpad left/right)
     private Turret turret;
-    private Vision vision;
 
     public boolean autoAimEnabled = true;
 
@@ -25,10 +23,9 @@ public class TurretController {
     private boolean prevDpadRight = false;
     private boolean prevDpadUp = false;
 
-    public TurretController(Gamepad gamepad, Turret turret, Vision vision) {
+    public TurretController(Gamepad gamepad, Turret turret) {
         this.gamepad = gamepad;
         this.turret = turret;
-        this.vision = vision;
     }
 
     public void update() {
@@ -97,12 +94,7 @@ public class TurretController {
                 autoAimEnabled = false;
             }
 
-            // Rumble feedback когда target visible (БЕЗ vision correction в manual!)
-            if (vision != null && vision.hasTargetTag()) {
-                gamepad.rumble(200);
-            }
-
-            // Только manual control БЕЗ vision correction
+            // Manual control БЕЗ auto-aim
             turret.manualControl(manualInput * MANUAL_SENSITIVITY);
 
         } else {

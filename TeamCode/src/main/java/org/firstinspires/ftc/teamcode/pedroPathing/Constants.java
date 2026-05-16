@@ -49,8 +49,8 @@ public class Constants {
             // CRITICAL: These encoder directions MUST match Localizer.java!
             // Forward encoder: mounted parallel to robot front/back → controls Y-axis (vertical movement)
             // Strafe encoder: mounted perpendicular to robot → controls X-axis (horizontal movement)
-            .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)    // Y-axis (forward/backward)
-            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED);   // X-axis (left/right)
+            .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)    // Y-axis (forward/backward)
+            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);   // X-axis (left/right)
 
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 0.8, 1);
 

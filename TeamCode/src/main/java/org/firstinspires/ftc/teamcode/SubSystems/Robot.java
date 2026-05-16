@@ -9,7 +9,6 @@ import java.util.List;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import org.firstinspires.ftc.teamcode.Controllers.IntakeController;
@@ -29,7 +28,6 @@ Robot {
     public Intake intake;
     public Shooter shooter;
     public Turret turret;
-    public Vision vision;
 
     // Controllers
     public IntakeController intakeController;
@@ -40,7 +38,7 @@ Robot {
     // Fire button state
     private boolean prevFireButton = false;
 
-    // Distance source для debug телеметрии (Vision или Odometry)
+    // Distance source для debug телеметрии
     public String distanceSource = "N/A";
     // Actual distance used for velocity/hood (distance to TAG, not GOAL)
     public double effectiveDistance = 0;
@@ -56,23 +54,6 @@ Robot {
 
     // Hood jitter prevention — единственная deadzone теперь в Shooter.java (3cm ≈ 1.18in)
 
-    // Reloc smoothing: сколько фреймов потери тега терпим перед сбросом
-    private static final int RELOC_LOSS_FRAMES_TO_RESET = 10; // ~200ms при 50Hz
-    private int relocLossFrames = 0;
-
-    // После position reset — блокируем reloc на N фреймов чтобы камера не перезаписала правильную позицию
-    private static final int RELOC_FREEZE_FRAMES = 25; // ~500ms при 50Hz
-    private int relocFreezeFrames = 0;
-
-    // Vision correction weight (0.0 = только odometry, 1.0 = только vision)
-    // 0.15 = плавная коррекция без jittering
-    private static final double VISION_CORRECTION_WEIGHT = 0.15;
-
-    // Vision relocalization — исправляет накопленный drift одометрии
-    // Каждый loop когда камера видит тег — плавно сдвигаем позицию робота к истинной
-    public static double RELOC_SMOOTHING = 0.07; // ~1 сек чтобы применить коррекцию (tunable)
-    private double relocSmoothedX = Double.NaN;
-    private double relocSmoothedY = Double.NaN;
     private boolean isRedAlliance;
 
     // Spinning detection — freeze distanceToGoal when robot spins in place to prevent odometry drift
@@ -99,17 +80,11 @@ Robot {
         // Localizer singleton (нужен для relocalization)
         Localizer.getInstance(hardwareMap);
 
-        // Vision (нужна для Turret)
-        vision = new Vision();
-        vision.init(hardwareMap);
-        vision.start();
-        vision.setAlliance(isRedAlliance); // Устанавливаем альянс
-
         // SubSystems
         driveTrain = new DriveTrain(hardwareMap, telemetry);
         intake = new Intake(hardwareMap);
         shooter = new Shooter(hardwareMap);
-        turret = new Turret(hardwareMap, vision, follower);
+        turret = new Turret(hardwareMap, follower);
         Pose goal = FieldConstants.getGoal(isRedAlliance);
         Pose tag = FieldConstants.getTag(isRedAlliance);
         turret.setGoalPose(goal);
@@ -117,8 +92,8 @@ Robot {
 
         // Controllers (на gamepad2)
         intakeController = new IntakeController(null, intake); // gamepad передадим в update
-        shooterController = new ShooterController(null, shooter, vision); // Vision enabled
-        turretController = new TurretController(null, turret, vision); // Vision enabled
+        shooterController = new ShooterController(null, shooter);
+        turretController = new TurretController(null, turret);
         resetController = new ResetController(intakeController, shooterController, turretController, intake, shooter, turret);
 
         // Set initial auto-aim state based on mode
@@ -208,18 +183,8 @@ Robot {
         prevHeading = currentHeading;
 
         double distanceToGoal = odometryDistance;
-
-        if (vision.hasTargetTag()) {
-            // Vision distance напрямую — точнее чем одометрия
-            double visionDist = vision.getTargetDistance();
-            if (visionDist > 0) {
-                distanceToGoal = visionDist;
-                distanceSource = String.format("Vision %.0f\"", visionDist);
-            } else {
-                distanceSource = "Vision (no dist)";
-            }
-        } else if (odometryDistance > 0) {
-            distanceSource = "Odometry only";
+        if (odometryDistance > 0) {
+            distanceSource = "Odometry";
         } else {
             distanceToGoal = 0;
             distanceSource = "No distance";
@@ -324,21 +289,5 @@ private void updateControllers(Gamepad gamepad1, Gamepad gamepad2) {
         intake.off();
         shooter.off();
         turret.stop();
-        vision.stop();
-    }
-
-    public void setAlliance(boolean isRedAlliance) {
-        vision.setAlliance(isRedAlliance);
-    }
-
-    /**
-     * Сбрасывает relocalization smoothing после резкого изменения robot pose.
-     * Без этого relocalization на следующем frame перепишет pose обратно к старым значениям.
-     */
-    public void resetReloc() {
-        relocSmoothedX = Double.NaN;
-        relocSmoothedY = Double.NaN;
-        relocLossFrames = 0;
-        relocFreezeFrames = RELOC_FREEZE_FRAMES; // блокируем reloc после position reset
     }
 }

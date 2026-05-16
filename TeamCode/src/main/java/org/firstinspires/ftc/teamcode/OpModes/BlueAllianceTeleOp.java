@@ -173,7 +173,6 @@ public class BlueAllianceTeleOp extends LinearOpMode {
             // После robot.update() resetEncoder() мог очистить goalPose — восстанавливаем
             if (didReset) {
                 robot.turret.setGoalPose(blueGoalPose);
-                robot.resetReloc(); // Сбрасываем reloc smoothing чтобы не переписал pose обратно
             }
 
             // Телеметрия
@@ -201,28 +200,6 @@ public class BlueAllianceTeleOp extends LinearOpMode {
         telemetry.addData("Robot Y", "%.2f in", currentPose.getY());
         telemetry.addData("Heading", "%.1f°", Math.toDegrees(currentPose.getHeading()));
 
-        // Vision
-        telemetry.addLine();
-//        telemetry.addLine("=== VISION (BLUE) ===");
-//        telemetry.addData("Alliance", robot.vision.getAllianceColor());
-        telemetry.addData("Target Tag ID", robot.vision.getTargetTagId());
-        telemetry.addData("Target Visible", robot.vision.hasTargetTag() ? "YES" : "NO");
-
-        double visionDistInches = robot.vision.getTargetDistance();
-        if (visionDistInches > 0) {
-            telemetry.addData("Vision Distance", "%.1f in (%.1f cm)",
-                visionDistInches, visionDistInches * 2.54);
-        } else {
-            telemetry.addData("Vision Distance", "---");
-        }
-
-        double yaw = robot.vision.getTargetYaw();
-        if (!Double.isNaN(yaw)) {
-            telemetry.addData("Target Yaw", "%.1f°", yaw);
-        } else {
-            telemetry.addData("Target Yaw", "---");
-        }
-
         // Turret
 //        telemetry.addLine();
 //        telemetry.addLine("=== TURRET ===");
@@ -245,10 +222,6 @@ public class BlueAllianceTeleOp extends LinearOpMode {
 
         // Distances
         double odometryDist = robot.turret.getDistanceToGoal();
-        double visionDist = robot.vision.getTargetDistance();
-        if (visionDist > 0) {
-            telemetry.addData("Vision Distance", "%.1f in", visionDist);
-        }
         telemetry.addData("Odometry Distance", "%.1f in", odometryDist);
         telemetry.addData("Effective Dist (vel/hood)", "%.1f in", robot.effectiveDistance);
         telemetry.addData("Distance Source", robot.distanceSource);
