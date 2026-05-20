@@ -25,6 +25,9 @@ public class RedAllianceTeleOp extends LinearOpMode {
     private ElapsedTime resetDebounceTimer = new ElapsedTime();
     private static final double RESET_DEBOUNCE_SEC = 0.5;
 
+    // Cross-alliance start (GP2 dpad_left) — usable only once per match
+    private boolean crossAllianceUsed = false;
+
     @Override
     public void runOpMode() {
         // RED Alliance
@@ -87,15 +90,15 @@ public class RedAllianceTeleOp extends LinearOpMode {
             startPose = new Pose(118, 129, Math.toRadians(45));
             telemetry.addLine("Using NO AUTO start position");
         } else {
-            // No Auto ran - use default Red start
-            startPose = new Pose(95, 83, Math.toRadians(0));
+            // No Auto ran - use default Red start (same as dpad_down reset)
+            startPose = new Pose(130, 76, Math.toRadians(0));
             telemetry.addLine("Using default Red start position");
         }
 
         robot.follower.setStartingPose(startPose);
+        robot.follower.update();
 
         // Synchronize Localizer with Follower (in case we used default)
-        // follower.getPose() в дюймах, Localizer.setPosition ожидает мм
         Pose syncPose = robot.follower.getPose();
         localizer.setPosition(
             syncPose.getX(),
@@ -111,29 +114,26 @@ public class RedAllianceTeleOp extends LinearOpMode {
         robot.start();
 
         while (opModeIsActive()) {
-            // Активируем моторы при первом вводе с джойстика
-            if (!robot.isDriverReady()) {
-                boolean anyInput = Math.abs(gamepad1.left_stick_x) > 0.1
-                        || Math.abs(gamepad1.left_stick_y) > 0.1
-                        || Math.abs(gamepad1.right_stick_x) > 0.1
-                        || Math.abs(gamepad2.left_stick_x) > 0.1
-                        || Math.abs(gamepad2.left_stick_y) > 0.1
-                        || Math.abs(gamepad2.right_stick_x) > 0.1
-                        || Math.abs(gamepad2.right_stick_y) > 0.1;
-                if (anyInput) {
-                    robot.activateDriver();
-                } else {
-                    // Только обновляем follower и телеметрию, моторы не крутятся
-                    robot.follower.update();
-                    telemetry.addLine(">>> WAITING FOR DRIVER INPUT <<<");
-                    telemetry.update();
-                    continue;
-                }
+            // gamepad1 drives immediately. Turret/shooter activate only after GP2 dpad_up or dpad_down.
+
+            // Cross-alliance start: GP2 dpad_left — sets Blue's dpad_up pose, usable only once
+            if (gamepad2.dpad_left && !crossAllianceUsed && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
+                crossAllianceUsed = true;
+                if (!robot.isDriverReady()) robot.activateDriver();
+                Pose crossPose = new Pose(135.8758815232722, 8.124118476727789, Math.toRadians(180));
+                robot.follower.setPose(crossPose);
+                org.firstinspires.ftc.teamcode.SubSystems.Localizer.getInstance().setPosition(
+                    crossPose.getX(), crossPose.getY(), Math.toDegrees(crossPose.getHeading()));
+                robot.turretController.enableAutoAim();
+                robot.turret.setGoalPose(redGoalPose);
+                robot.turret.autoAim();
+                resetDebounceTimer.reset();
             }
 
-            // Position reset on dpad_up (gamepad1) — debounce без sleep
+            // Position reset + activation on dpad (gamepad2)
             boolean didReset = false;
-            if (gamepad1.dpad_up && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
+            if (gamepad2.dpad_up && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
+                if (!robot.isDriverReady()) robot.activateDriver();
                 // Reset to Red alliance preset position (far side)
                 Pose resetPose = new Pose(11.598, 10.885, Math.toRadians(0));
                 robot.follower.setPose(resetPose);
@@ -151,20 +151,14 @@ public class RedAllianceTeleOp extends LinearOpMode {
                 resetDebounceTimer.reset();
             }
 
-            if (gamepad1.dpad_down && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
-                // Reset to Red alliance near-goal position
+            if (gamepad2.dpad_down && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
+                if (!robot.isDriverReady()) robot.activateDriver();
                 Pose resetPose = new Pose(130, 76, Math.toRadians(0));
                 robot.follower.setPose(resetPose);
-
                 org.firstinspires.ftc.teamcode.SubSystems.Localizer.getInstance().setPosition(
-                    resetPose.getX(),
-                    resetPose.getY(),
-                    Math.toDegrees(resetPose.getHeading())
-                );
-
+                    resetPose.getX(), resetPose.getY(), Math.toDegrees(resetPose.getHeading()));
                 robot.turretController.enableAutoAim();
                 robot.turret.autoAim();
-
                 didReset = true;
                 resetDebounceTimer.reset();
             }
@@ -175,7 +169,6 @@ public class RedAllianceTeleOp extends LinearOpMode {
             // После robot.update() resetEncoder() мог очистить goalPose — восстанавливаем
             if (didReset) {
                 robot.turret.setGoalPose(redGoalPose);
-                robot.resetReloc(); // Сбрасываем reloc smoothing чтобы не переписал pose обратно
             }
 
             // Телеметрия
@@ -188,6 +181,11 @@ public class RedAllianceTeleOp extends LinearOpMode {
     }
 
     private void displayTelemetry() {
+        if (!robot.isDriverReady()) {
+            telemetry.addLine(">>> GP2 DPAD UP or DOWN to activate turret/shooter <<<");
+            telemetry.addLine();
+        }
+
         // Mode indicator at top
         telemetry.addLine("=== MODE ===");
         telemetry.addData("TeleOp Mode", selectedMode);
@@ -203,43 +201,11 @@ public class RedAllianceTeleOp extends LinearOpMode {
         telemetry.addData("Robot Y", "%.2f in", currentPose.getY());
         telemetry.addData("Heading", "%.1f°", Math.toDegrees(currentPose.getHeading()));
 
-        // Vision
-        telemetry.addLine();
-//        telemetry.addLine("=== VISION (RED) ===");
-//        telemetry.addData("Alliance", robot.vision.getAllianceColor());
-        telemetry.addData("Target Tag ID", robot.vision.getTargetTagId());
-        telemetry.addData("Target Visible", robot.vision.hasTargetTag() ? "YES" : "NO");
-
-        double visionDistInches = robot.vision.getTargetDistance();
-        if (visionDistInches > 0) {
-            telemetry.addData("Vision Distance", "%.1f in (%.1f cm)",
-                visionDistInches, visionDistInches * 2.54);
-        } else {
-            telemetry.addData("Vision Distance", "---");
-        }
-
-        double yaw = robot.vision.getTargetYaw();
-        if (!Double.isNaN(yaw)) {
-            telemetry.addData("Target Yaw", "%.1f°", yaw);
-        } else {
-            telemetry.addData("Target Yaw", "---");
-        }
-
         // Turret
-//        telemetry.addLine();
-//        telemetry.addLine("=== TURRET ===");
-//        telemetry.addData("Current Angle", "%.1f°", robot.turret.getCurrentAngle());
-//        telemetry.addData("Target Angle", "%.1f°", robot.turret.getTargetAngle());
-//
-//        String turretMode;
-//        if (robot.turret.atTarget()) {
-//            turretMode = "AT TARGET";
-//        } else {
-//            turretMode = "MOVING";
-//        }
-//        telemetry.addData("Mode", turretMode);
-//        telemetry.addData("Auto Aim", robot.turretController.isAutoAimEnabled() ? "ON" : "MANUAL");
-//        telemetry.addData("Centered", robot.turret.isCentered() ? "YES" : "NO");
+        telemetry.addLine();
+        telemetry.addLine("=== TURRET ===");
+        telemetry.addData("Current Angle", "%.1f°", robot.turret.getCurrentAngle());
+        telemetry.addData("Target Angle", "%.1f°", robot.turret.getTargetAngle());;
 
         // Shooter
         telemetry.addLine();
@@ -247,10 +213,6 @@ public class RedAllianceTeleOp extends LinearOpMode {
 
         // Distances
         double odometryDist = robot.turret.getDistanceToGoal();
-        double visionDist = robot.vision.getTargetDistance();
-        if (visionDist > 0) {
-            telemetry.addData("Vision Distance", "%.1f in", visionDist);
-        }
         telemetry.addData("Odometry Distance", "%.1f in", odometryDist);
         telemetry.addData("Effective Dist (vel/hood)", "%.1f in", robot.effectiveDistance);
         telemetry.addData("Distance Source", robot.distanceSource);

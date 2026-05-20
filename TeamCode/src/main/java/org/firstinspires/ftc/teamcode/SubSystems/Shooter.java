@@ -38,8 +38,8 @@ public class Shooter {
         RESET
     }
 
-    private static final double STOP_OPEN = 0.2;
-    private static final double STOP_CLOSE = 0.4;
+    private static final double STOP_OPEN = 0.06;
+    private static final double STOP_CLOSE = 0.22;
     private static final double INTAKE_STOP_ON = 0.9;   // Позиция во время стрельбы
     private static final double INTAKE_STOP_OFF = 1.0;  // Обычная позиция (не стреляем)
     private static final double OPEN_STOP_TIME = 0.06;
@@ -62,12 +62,12 @@ public class Shooter {
     public static double DECEL_BOOST     = 300.0; // ticks/sec below target to command during braking
 
     // Flywheel velocity formula coefficients (4th order polynomial)
-    // y = -0.00000695632x^4 + 0.00131953x^3 - 0.0277327x^2 + 1.91371x + 917.18732
-    public static double VELOCITY_A = -0.00000695632;
-    public static double VELOCITY_B =  0.00131953;
-    public static double VELOCITY_C = -0.0277327;
-    public static double VELOCITY_D =  1.91371;
-    public static double VELOCITY_E =  917.18732;
+    // y = 0.00000458277x^4 - 0.00167105x^3 + 0.2038x^2 - 3.99024x + 998.91569
+    public static double VELOCITY_A =  0.00000458277;
+    public static double VELOCITY_B = -0.00167105;
+    public static double VELOCITY_C =  0.2038;
+    public static double VELOCITY_D = -3.99024;
+    public static double VELOCITY_E =  998.91569;
 
     public static double VELOCITY_READY_THRESHOLD = 0.93; // 93% of target = "at speed"
 
@@ -76,16 +76,15 @@ public class Shooter {
     private static final double MAX_VELOCITY = 1700.0;
     public static double FLYWHEEL_OFFSET = 0.0;           // Offset для калибровки (tunable)
 
-    // Hood angle formula (sinusoidal)
-    // y = 22640283.64 * sin(0.000001166157613x + 1.570374221) - 22640281.79
-    public static double HOOD_AMP    = 22640283.64;
-    public static double HOOD_FREQ   = 0.000001166157613;
-    public static double HOOD_PHASE  = 1.570374221;
-    public static double HOOD_SHIFT  = -22640281.79;
+    // Hood angle formula (logistic)
+    // y = 1.02214 / (1 + e^(-(0.102477x - 5.0052)))
+    public static double HOOD_L  = 1.02214;
+    public static double HOOD_K  = 0.102477;
+    public static double HOOD_X0 = 5.0052;
 
     // Hood angle limits
     private static final double MIN_HOOD_ANGLE = 0.0;
-    private static final double MAX_HOOD_ANGLE = 0.6;
+    private static final double MAX_HOOD_ANGLE = 1.0;
     public static double HOOD_OFFSET = 0.0;
 
     // Last-applied PIDF — used to detect FTC Dashboard changes (I and D locked to 0)
@@ -185,9 +184,7 @@ public class Shooter {
      * @return Hood servo position (0.0 - 1.0)
      */
     private double calculateHoodAngle(double distanceInches) {
-        // Sinusoidal: y = AMP * sin(FREQ * x + PHASE) + SHIFT
-        double angle = HOOD_AMP * Math.sin(HOOD_FREQ * distanceInches + HOOD_PHASE) + HOOD_SHIFT;
-
+        double angle = HOOD_L / (1.0 + Math.exp(-(HOOD_K * distanceInches - HOOD_X0)));
         return clamp(angle, MIN_HOOD_ANGLE, MAX_HOOD_ANGLE) + HOOD_OFFSET;
     }
 
@@ -233,28 +230,6 @@ public class Shooter {
             lastVelocityDistance = distance;
         }
     }
-
-    /**
-     * ЗАКОММЕНТИРОВАНО: Динамически обновляет Hood на основе расстояния от Vision
-     * Вызывать в loop() для автоматической настройки
-     *
-     * СЕЙЧАС ИСПОЛЬЗУЕТСЯ ТОЛЬКО ODOMETRY в Robot.java
-     */
-    /*
-    public void updateHoodDynamic(Vision vision) {
-        double distance = 0;
-
-        // Vision - если камера видит AprilTag
-        if (vision != null && vision.hasTargetTag()) {
-            distance = vision.getTargetDistance();
-        }
-
-        // Обновляем Hood если есть валидное расстояние
-        if (distance > 0) {
-            updateHood(distance);
-        }
-    }
-    */
 
     // -----------------------------------------------------------------------
     // Motion compensation API

@@ -155,7 +155,7 @@ class LocalizationTest extends OpMode {
      */
     @Override
     public void loop() {
-        follower.setTeleOpDrive(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x, true);
+        follower.setTeleOpDrive(-gamepad1.left_stick_y, -gamepad1.right_stick_x, -gamepad1.left_stick_x, true);
         follower.update();
 
         telemetryM.debug("x:" + follower.getPose().getX());
@@ -497,6 +497,18 @@ class LateralVelocityTuner extends OpMode {
                 double currentVelocity = Math.abs(follower.getVelocity().dot(new Vector(1, Math.PI / 2)));
                 velocities.add(currentVelocity);
                 velocities.remove(0);
+
+                // Debug: visible on Driver Station while robot is running
+                double posY = follower.getPose().getY();
+                telemetry.addLine("=== LATERAL VEL TUNER RUNNING ===");
+                telemetry.addData("Pose Y (needs >" + (DISTANCE + 72) + ")", "%.3f", posY);
+                telemetry.addData("Pose X", "%.3f", follower.getPose().getX());
+                telemetry.addData("Heading deg", "%.1f", Math.toDegrees(follower.getPose().getHeading()));
+                telemetry.addData("Y moved so far", "%.3f in", posY - 72.0);
+                telemetry.addData("Target Y dist", "%.1f in", DISTANCE);
+                telemetry.addData("Current lateral vel", "%.2f in/s", currentVelocity);
+                telemetry.addLine("Press B to stop early");
+                telemetry.update();
             }
         } else {
             stopRobot();
@@ -643,7 +655,7 @@ class ForwardZeroPowerAccelerationTuner extends OpMode {
  */
 class LateralZeroPowerAccelerationTuner extends OpMode {
     private final ArrayList<Double> accelerations = new ArrayList<>();
-    public static double VELOCITY = 50;
+    public static double VELOCITY = 30;
     private double previousVelocity;
     private long previousTimeNano;
     private boolean stopping;
@@ -692,22 +704,39 @@ class LateralZeroPowerAccelerationTuner extends OpMode {
         draw();
 
         Vector heading = new Vector(1.0, follower.getPose().getHeading() - Math.PI / 2);
+        double lateralVel = Math.abs(follower.getVelocity().dot(heading));
         if (!end) {
             if (!stopping) {
-                if (Math.abs(follower.getVelocity().dot(heading)) > VELOCITY) {
-                    previousVelocity = Math.abs(follower.getVelocity().dot(heading));
+                if (lateralVel > VELOCITY) {
+                    previousVelocity = lateralVel;
                     previousTimeNano = System.nanoTime();
                     stopping = true;
                     follower.setTeleOpDrive(0,0,0,true);
                 }
+                // Phase 1: accelerating to target velocity
+                telemetry.addLine("=== LATERAL ZERO POWER ACCEL ===");
+                telemetry.addLine("Phase: ACCELERATING (waiting for vel > " + VELOCITY + ")");
+                telemetry.addData("Current lateral vel", "%.2f in/s", lateralVel);
+                telemetry.addData("Target vel", "%.1f in/s", VELOCITY);
+                telemetry.addData("Pose Y", "%.3f", follower.getPose().getY());
+                telemetry.addData("Pose X", "%.3f", follower.getPose().getX());
+                telemetry.addLine("Press B to stop early");
+                telemetry.update();
             } else {
-                double currentVelocity = Math.abs(follower.getVelocity().dot(heading));
+                double currentVelocity = lateralVel;
                 accelerations.add((currentVelocity - previousVelocity) / ((System.nanoTime() - previousTimeNano) / Math.pow(10.0, 9)));
                 previousVelocity = currentVelocity;
                 previousTimeNano = System.nanoTime();
                 if (currentVelocity < follower.getConstraints().getVelocityConstraint()) {
                     end = true;
                 }
+                // Phase 2: coasting to stop, measuring deceleration
+                telemetry.addLine("=== LATERAL ZERO POWER ACCEL ===");
+                telemetry.addLine("Phase: COASTING (measuring deceleration)");
+                telemetry.addData("Current lateral vel", "%.2f in/s", currentVelocity);
+                telemetry.addData("Stop threshold", "%.4f", follower.getConstraints().getVelocityConstraint());
+                telemetry.addData("Samples collected", accelerations.size());
+                telemetry.update();
             }
         } else {
             double average = 0;
@@ -749,6 +778,7 @@ class TranslationalTuner extends OpMode {
 
     @Override
     public void init() {
+        follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(72, 72));
     }
 
@@ -818,6 +848,7 @@ class HeadingTuner extends OpMode {
 
     @Override
     public void init() {
+        follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(72, 72));
     }
 
@@ -875,7 +906,7 @@ class HeadingTuner extends OpMode {
 /**
  * This is the Drive PIDF Tuner OpMode. It will run the robot in a straight line going forward and back.
  *
- * @author Baron Henderson - 20077 The Indubitables
+ * @author Baron Henderson  f- 20077 The Indubitables
  * @author Anyi Lin - 10158 Scott's Bots
  * @author Aaron Yang - 10158 Scott's Bots
  * @author Harrison Womack - 10158 Scott's Bots

@@ -9,7 +9,6 @@ import java.util.List;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 import org.firstinspires.ftc.teamcode.Controllers.IntakeController;
@@ -18,128 +17,78 @@ import org.firstinspires.ftc.teamcode.Controllers.TurretController;
 import org.firstinspires.ftc.teamcode.Controllers.ResetController;
 import org.firstinspires.ftc.teamcode.OpModes.TeleOpMode;
 
-public class
-Robot {
-    // Bulk reads — all I2C reads per loop cached in one call
+public class Robot {
     private List<LynxModule> allHubs;
 
-    // SubSystems
     public Follower follower;
-    public DriveTrain driveTrain;
     public Intake intake;
     public Shooter shooter;
     public Turret turret;
-    public Vision vision;
 
-    // Controllers
     public IntakeController intakeController;
     public ShooterController shooterController;
     public TurretController turretController;
     public ResetController resetController;
 
-    // Fire button state
     private boolean prevFireButton = false;
 
-    // Distance source для debug телеметрии (Vision или Odometry)
     public String distanceSource = "N/A";
-    // Actual distance used for velocity/hood (distance to TAG, not GOAL)
     public double effectiveDistance = 0;
 
-    // TeleOp mode (NORMAL or EMERGENCY)
     private TeleOpMode teleOpMode;
 
-    // Manual hood control flag
     public boolean manualHoodMode = false;
 
-    // Driver ready flag — моторы не запускаются пока водитель не тронет джойстик
     private boolean driverReady = false;
 
-    // Hood jitter prevention — единственная deadzone теперь в Shooter.java (3cm ≈ 1.18in)
-
-    // Reloc smoothing: сколько фреймов потери тега терпим перед сбросом
-    private static final int RELOC_LOSS_FRAMES_TO_RESET = 10; // ~200ms при 50Hz
-    private int relocLossFrames = 0;
-
-    // После position reset — блокируем reloc на N фреймов чтобы камера не перезаписала правильную позицию
-    private static final int RELOC_FREEZE_FRAMES = 25; // ~500ms при 50Hz
-    private int relocFreezeFrames = 0;
-
-    // Vision correction weight (0.0 = только odometry, 1.0 = только vision)
-    // 0.15 = плавная коррекция без jittering
-    private static final double VISION_CORRECTION_WEIGHT = 0.15;
-
-    // Vision relocalization — исправляет накопленный drift одометрии
-    // Каждый loop когда камера видит тег — плавно сдвигаем позицию робота к истинной
-    public static double RELOC_SMOOTHING = 0.07; // ~1 сек чтобы применить коррекцию (tunable)
-    private double relocSmoothedX = Double.NaN;
-    private double relocSmoothedY = Double.NaN;
-    private boolean isRedAlliance;
-
-    // Spinning detection — freeze distanceToGoal when robot spins in place to prevent odometry drift
-    // GoBilda Pinpoint pods are not at center of rotation → spinning causes fake X/Y drift
-    private static final double SPIN_THRESHOLD_DEG_PER_FRAME = 0.5; // degrees/frame (~15°/s at 30Hz) — catches slow turns too
-    private double stableDistance = 0;
+    // Spinning detection — freeze physics when robot rotates to prevent odometry drift
+    private static final double SPIN_THRESHOLD_DEG_PER_FRAME = 0.5;
     private double prevHeading = Double.NaN;
 
-    // Field coordinates — single source of truth in FieldConstants.java
+    private boolean isRedAlliance;
 
     public Robot(HardwareMap hardwareMap, Telemetry telemetry, boolean isRedAlliance, TeleOpMode mode) {
         this.teleOpMode = mode;
         this.isRedAlliance = isRedAlliance;
-        // Bulk reads — one I2C read per hub per loop instead of per-device
         allHubs = hardwareMap.getAll(LynxModule.class);
         for (LynxModule hub : allHubs) {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         }
 
-        // Pedro Pathing Follower (одометрия)
         follower = Constants.createFollower(hardwareMap);
-        follower.update(); // CRITICAL: Initialize before setting pose
+        follower.update();
 
-        // Localizer singleton (нужен для relocalization)
         Localizer.getInstance(hardwareMap);
 
-        // Vision (нужна для Turret)
-        vision = new Vision();
-        vision.init(hardwareMap);
-        vision.start();
-        vision.setAlliance(isRedAlliance); // Устанавливаем альянс
-
-        // SubSystems
-        driveTrain = new DriveTrain(hardwareMap, telemetry);
         intake = new Intake(hardwareMap);
         shooter = new Shooter(hardwareMap);
-        turret = new Turret(hardwareMap, vision, follower);
+        turret = new Turret(hardwareMap, follower);
         Pose goal = FieldConstants.getGoal(isRedAlliance);
         Pose tag = FieldConstants.getTag(isRedAlliance);
         turret.setGoalPose(goal);
         turret.setTagPose(tag.getX(), tag.getY());
 
-        // Controllers (на gamepad2)
-        intakeController = new IntakeController(null, intake); // gamepad передадим в update
-        shooterController = new ShooterController(null, shooter, vision); // Vision enabled
-        turretController = new TurretController(null, turret, vision); // Vision enabled
+        intakeController = new IntakeController(null, intake);
+        shooterController = new ShooterController(null, shooter);
+        turretController = new TurretController(null, turret);
         resetController = new ResetController(intakeController, shooterController, turretController, intake, shooter, turret);
 
-        // Set initial auto-aim state based on mode
         if (mode == TeleOpMode.EMERGENCY) {
             turretController.disableAutoAim();
         }
-        // NORMAL mode keeps default autoAimEnabled=true
     }
 
     public void start() {
-        // Начальная настройка - убедимся что intake выключен
+        follower.startTeleopDrive();
         intake.off();
-        // Турель и flywheel НЕ запускаются — ждём activateDriver()
     }
 
     /**
-     * Вызвать когда водитель готов (первый ввод с джойстика).
-     * Запускает турель auto-aim и flywheel.
+     * Call when driver is ready (first joystick input).
+     * Starts turret auto-aim and flywheel spin-up.
      */
     public void activateDriver() {
-        if (driverReady) return; // уже активирован
+        if (driverReady) return;
         driverReady = true;
 
         if (teleOpMode == TeleOpMode.NORMAL || teleOpMode == TeleOpMode.NO_AUTO) {
@@ -166,7 +115,6 @@ Robot {
         return driverReady;
     }
 
-    // Loop timing
     private ElapsedTime loopTimer = new ElapsedTime();
     private double avgLoopMs = 0;
     private int loopCount = 0;
@@ -175,20 +123,33 @@ Robot {
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
         if (loopCount > 0) {
-            avgLoopMs = avgLoopMs * 0.9 + loopMs * 0.1; // EMA
+            avgLoopMs = avgLoopMs * 0.9 + loopMs * 0.1;
         }
         loopCount++;
 
-        // Clear bulk cache once per loop — all subsequent I2C reads use cached data
         for (LynxModule hub : allHubs) {
             hub.clearBulkCache();
         }
 
         follower.update();
 
-        driveTrain.drive(gamepad1, gamepad2, telemetry);
+        double slowModeFactor = gamepad1.right_trigger > 0.1 ? 0.3 : 1.0;
+        follower.setTeleOpDrive(
+                -gamepad1.left_stick_y  * slowModeFactor,
+                -gamepad1.left_stick_x  * slowModeFactor,
+                -gamepad1.right_stick_x * slowModeFactor,
+                true
+        );
 
-        // Distance to TAG — для velocity/hood (формулы калиброваны от тега)
+        // Drive always runs. Turret/shooter wait until activateDriver() is called.
+        if (!driverReady) {
+            if (loopCount % 10 == 0) {
+                telemetry.addData("Loop", String.format("%.1fms (%.0f Hz)", avgLoopMs, avgLoopMs > 0 ? 1000.0 / avgLoopMs : 0));
+            }
+            return;
+        }
+
+        // Distance to TAG — for velocity/hood (formulas calibrated from tag, not goal)
         double tagX = FieldConstants.getTag(isRedAlliance).getX();
         double tagY = FieldConstants.getTag(isRedAlliance).getY();
         Pose curPose = follower.getPose();
@@ -196,30 +157,20 @@ Robot {
         double dty = tagY - curPose.getY();
         double odometryDistance = Math.sqrt(dtx * dtx + dty * dty);
 
-        // Spinning detection — freeze distance when robot rotates in place to prevent odometry drift
+        // Spinning detection — prevent physics override when robot rotates in place
         double currentHeading = curPose.getHeading();
         boolean isSpinning = false;
         if (!Double.isNaN(prevHeading)) {
-            // Normalize heading delta to [-180, 180] degrees
             double rawDelta = Math.toDegrees(currentHeading - prevHeading);
             double headingDeltaDeg = Math.abs(rawDelta - Math.round(rawDelta / 360.0) * 360.0);
             isSpinning = headingDeltaDeg > SPIN_THRESHOLD_DEG_PER_FRAME;
         }
         prevHeading = currentHeading;
 
-        double distanceToGoal = odometryDistance;
-
-        if (vision.hasTargetTag()) {
-            // Vision distance напрямую — точнее чем одометрия
-            double visionDist = vision.getTargetDistance();
-            if (visionDist > 0) {
-                distanceToGoal = visionDist;
-                distanceSource = String.format("Vision %.0f\"", visionDist);
-            } else {
-                distanceSource = "Vision (no dist)";
-            }
-        } else if (odometryDistance > 0) {
-            distanceSource = "Odometry only";
+        double distanceToGoal;
+        if (odometryDistance > 0) {
+            distanceToGoal = odometryDistance;
+            distanceSource = "Odometry";
         } else {
             distanceToGoal = 0;
             distanceSource = "No distance";
@@ -230,7 +181,7 @@ Robot {
         if (!isSpinning && turret.hasPhysicsShot() && turret.getPhysicsVirtualDistanceInches() > 0) {
             effectiveDist = turret.getPhysicsVirtualDistanceInches();
         }
-        effectiveDistance = effectiveDist; // Expose for telemetry
+        effectiveDistance = effectiveDist;
 
         if (!manualHoodMode) {
             if (effectiveDist <= 0) {
@@ -246,7 +197,6 @@ Robot {
                 shooter.updateHood(effectiveDist);
             }
         } else {
-            // Manual hood mode - only update velocity, not hood
             if (effectiveDist > 0) {
                 shooter.updateVelocity(effectiveDist);
                 distanceSource += " (manual hood)";
@@ -262,10 +212,8 @@ Robot {
 
         shooter.updatePID();
 
-        // Автоматическая регулировка Hood и Turret происходит внутри контроллеров
         updateControllers(gamepad1, gamepad2);
 
-        // Telemetry — каждый 3-й loop чтобы не тормозить
         if (loopCount % 10 == 0) {
             telemetry.addData("Loop", String.format("%.1fms (%.0f Hz)", avgLoopMs, avgLoopMs > 0 ? 1000.0 / avgLoopMs : 0));
             telemetry.addData("Spinning", isSpinning ? "YES (dist frozen)" : "no");
@@ -277,28 +225,26 @@ Robot {
             }
         }
 
-        // Fire button
         handleFireButton(gamepad2, telemetry);
     }
 
-private void updateControllers(Gamepad gamepad1, Gamepad gamepad2) {
+    private void updateControllers(Gamepad gamepad1, Gamepad gamepad2) {
         if (gamepad2 == null) return;
         shooterController.gamepad = gamepad2;
+        shooterController.gamepad1 = gamepad1;
         shooterController.update(intake);
 
         boolean prevAutoAim = turretController.autoAimEnabled;
         turretController.gamepad = gamepad2;
-        turretController.gamepad1 = gamepad1; // Для dpad calibration
+        turretController.gamepad1 = gamepad1;
         turretController.update();
 
-        // Если auto-aim только что включился — сбрасываем deadzones чтобы hood/velocity обновились сразу
         if (!prevAutoAim && turretController.autoAimEnabled) {
             shooter.resetDeadzones();
         }
 
-
-        // IntakeController управляет intake только если Shooter НЕ активен
         intakeController.gamepad = gamepad2;
+        intakeController.gamepad1 = gamepad1;
         if (!shooterController.isShooting()) {
             intakeController.update();
         }
@@ -318,27 +264,9 @@ private void updateControllers(Gamepad gamepad1, Gamepad gamepad2) {
         prevFireButton = gamepad2.a;
     }
 
-
-
     public void stop() {
         intake.off();
         shooter.off();
         turret.stop();
-        vision.stop();
-    }
-
-    public void setAlliance(boolean isRedAlliance) {
-        vision.setAlliance(isRedAlliance);
-    }
-
-    /**
-     * Сбрасывает relocalization smoothing после резкого изменения robot pose.
-     * Без этого relocalization на следующем frame перепишет pose обратно к старым значениям.
-     */
-    public void resetReloc() {
-        relocSmoothedX = Double.NaN;
-        relocSmoothedY = Double.NaN;
-        relocLossFrames = 0;
-        relocFreezeFrames = RELOC_FREEZE_FRAMES; // блокируем reloc после position reset
     }
 }

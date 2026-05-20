@@ -3,61 +3,49 @@ package org.firstinspires.ftc.teamcode.SubSystems;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 /**
  * Turret facade — preserves the original public API.
  *
  * Internally delegates to three focused classes:
  *   TurretMotor      — motor, PIDF, encoder, manual control
- *   TurretAimer      — auto-aim: vision (priority) → odometry fallback
+ *   TurretAimer      — auto-aim: odometry-based targeting
  *   TurretBallistics — while-moving physics (null when no Follower available)
- *
- * Robot.java and TurretController.java are unchanged.
  */
 public class Turret {
 
-    // Internal components — exposed as public for direct debugging/testing
     public final TurretMotor      motor;
     public final TurretAimer      aimer;
-    public final TurretBallistics ballistics; // null in Auto / vision-only / basic constructors
+    public final TurretBallistics ballistics;
 
-    // Preset angles (convenience constants)
     public static final double RED_TARGET  = -90.0;
     public static final double BLUE_TARGET =  90.0;
     public static final double ZERO        =   0.0;
 
-    // ── Constructors (same signatures as before) ──────────────────────────────
+    // ── Constructors ─────────────────────────────────────────────────────────
 
     /** Auto: odometry via Localizer singleton, resets encoder. */
-    public Turret(HardwareMap hardwareMap, Vision vision, Localizer localizer) {
+    public Turret(HardwareMap hardwareMap, Localizer localizer) {
         motor      = new TurretMotor(hardwareMap, true);
-        ballistics = null; // Localizer has no velocity API → physics disabled
-        aimer      = new TurretAimer(motor, ballistics, vision, localizer);
+        ballistics = null;
+        aimer      = new TurretAimer(motor, ballistics, localizer);
     }
 
     /**
      * TeleOp: odometry via Pedro Follower.
      * Does NOT reset encoder — preserves turret position from Auto.
      */
-    public Turret(HardwareMap hardwareMap, Vision vision, Follower follower) {
+    public Turret(HardwareMap hardwareMap, Follower follower) {
         motor      = new TurretMotor(hardwareMap, false);
         ballistics = new TurretBallistics(follower);
-        aimer      = new TurretAimer(motor, ballistics, vision, follower);
+        aimer      = new TurretAimer(motor, ballistics, follower);
     }
 
-    /** Vision-only test: no odometry, no physics. */
-    public Turret(HardwareMap hardwareMap, Vision vision) {
-        motor      = new TurretMotor(hardwareMap, true);
-        ballistics = null;
-        aimer      = new TurretAimer(motor, vision);
-    }
-
-    /** Basic motor test: no vision, no odometry, no physics. */
+    /** Basic motor test: no odometry, no physics. */
     public Turret(HardwareMap hardwareMap) {
         motor      = new TurretMotor(hardwareMap, true);
         ballistics = null;
-        aimer      = new TurretAimer(motor, null);
+        aimer      = new TurretAimer(motor);
     }
 
     // ── Goal / tag setup ─────────────────────────────────────────────────────
@@ -88,13 +76,15 @@ public class Turret {
 
     // ── Auto-aim ─────────────────────────────────────────────────────────────
 
-    /** Full auto-aim loop: vision → odometry → physics lead. Drives motor. Call every loop(). */
+    /** Full auto-aim loop: odometry → physics lead. Drives motor. Call every loop(). */
     public void autoAim()                      { aimer.autoAim(); }
+    public void setAutoAimOffset(double offset){ aimer.setAutoAimOffset(offset); }
+    public double getCalculatedTargetAngle()   { return aimer.getCalculatedTargetAngle(); }
 
     /** Hold current targetAngle with PIDF (no aim recalculation). */
     public void maintainTarget()               { motor.maintainTarget(); }
 
-    /** Auto: hold hardcoded angle, apply small vision correction once settled. */
+    /** Auto: hold hardcoded angle with PIDF. */
     public void maintainWithVisionCorrection() { aimer.maintainWithVisionCorrection(); }
 
     // ── Motor control ────────────────────────────────────────────────────────
@@ -116,27 +106,16 @@ public class Turret {
     public void setPIDF(double p, double i, double d, double f) { motor.setPIDF(p, i, d, f); }
     public void setPID(double p, double i, double d)            { motor.setPID(p, i, d); }
 
-    // ── Vision ───────────────────────────────────────────────────────────────
+    // ── Tracking ─────────────────────────────────────────────────────────────
 
     public boolean isTracking() { return aimer.isTracking(); }
-
-    public void updateGoalFromVision(Pose3D tagCameraPose) {
-        aimer.updateGoalFromVision(tagCameraPose);
-    }
-
-    public Pose computeRobotPoseFromVision(Pose3D tagCameraPose,
-                                           double tagFieldX, double tagFieldY) {
-        return aimer.computeRobotPoseFromVision(tagCameraPose, tagFieldX, tagFieldY);
-    }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
     public void resetEncoder() {
         motor.resetEncoder();
-        aimer.onEncoderReset(); // resets smoothedTargetAngle + smoothedGoalX/Y
+        aimer.onEncoderReset();
     }
-
-    public void resetGoalSmoothing() { aimer.resetGoalSmoothing(); }
 
     public void stop() { motor.stop(); }
 }

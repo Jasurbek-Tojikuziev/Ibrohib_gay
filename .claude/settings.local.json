@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:pedropathing.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:maven.pedropathing.com)",
+      "Bash(git add *)"
+    ]
+  }
+}

@@ -1,54 +1,37 @@
 package org.firstinspires.ftc.teamcode.Controllers;
 
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.SubSystems.Intake;
 import org.firstinspires.ftc.teamcode.SubSystems.Shooter;
-import org.firstinspires.ftc.teamcode.SubSystems.Vision;
 
 public class ShooterController {
     public Gamepad gamepad;
+    public Gamepad gamepad1;
     private Shooter shooter;
-    private Vision vision;
 
     private boolean prevRightBumper = false;
-    private boolean prevDpadDown = false;
+    private boolean prevGp1RightBumper = false;
 
-    public ShooterController(Gamepad gamepad, Shooter shooter,  Vision vision) {
+    public ShooterController(Gamepad gamepad, Shooter shooter) {
         this.gamepad = gamepad;
         this.shooter = shooter;
-        this.vision = vision;
     }
 
     public void update(Intake intake) {
         if (gamepad == null) return;
 
-        // === Dpad Up - ручное открытие shooterStop (приоритет над FSM) ===
-        if (gamepad.dpad_up) {
-            // Зажата - держим shooterStop открытым, FSM не может закрыть
-            shooter.setManualStopOverride(true);
-        } else if (gamepad.dpad_down && !prevDpadDown) {
-            // Dpad Down - однократное закрытие shooterStop (debounced, не каждый кадр)
-            shooter.forceCloseStop();
-        } else {
-            // Отпущена - FSM работает как обычно
-            shooter.setManualStopOverride(false);
-        }
-
-        // === Right Bumper - запуск стрельбы ===
-        if (gamepad.right_bumper && !prevRightBumper) {
+        // Right Bumper (gp2) or Right Bumper (gp1) — fire
+        boolean gp1Fire = gamepad1 != null && gamepad1.right_bumper && !prevGp1RightBumper;
+        if ((gamepad.right_bumper && !prevRightBumper) || gp1Fire) {
             shooter.startShoot();
         }
 
-        // Hood и Velocity обновляются от Vision (приоритет) с fallback на Odometry в Robot.update()
-
-        // Обновление FSM шутера
+        // Hood and Velocity updated by Robot.update() via odometry distance
         shooter.updateFSM(intake);
 
-        // Сохраняем состояние кнопок
         prevRightBumper = gamepad.right_bumper;
-        prevDpadDown = gamepad.dpad_down;
+        prevGp1RightBumper = gamepad1 != null ? gamepad1.right_bumper : false;
     }
 
     public boolean isShooting() {

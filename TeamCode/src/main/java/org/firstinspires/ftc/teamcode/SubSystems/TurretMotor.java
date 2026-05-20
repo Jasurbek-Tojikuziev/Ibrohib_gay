@@ -13,10 +13,10 @@ public class TurretMotor {
     private final DcMotorEx turretMotor;
 
     // PIDF coefficients — public for Dashboard / TurretTester tuning
-    public double kP = 0.011;
+    public double kP = 0.021;
     public double kI = 0.0;
-    public double kD = 0.0007;
-    public double kF = 0.09;
+    public double kD = 0.00033;
+    public double kF = 0.043;
 
     private double integral    = 0;
     private double lastError   = 0;
@@ -25,9 +25,9 @@ public class TurretMotor {
     private double targetAngle = 0.0;
 
     // Physical constants
-    public static double TICKS_PER_DEGREE = 3.15;
-    public static final double MAX_ANGLE       =  120.0;
-    public static final double MIN_ANGLE       = -180.0;
+    public static double TICKS_PER_DEGREE = 4.33;
+    public static final double MAX_ANGLE       =  150.0;
+    public static final double MIN_ANGLE       = -150.0;
     public static final double ANGLE_TOLERANCE =    2.0;
 
     private static final double MANUAL_STEP    =  3.0;

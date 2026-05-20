@@ -63,7 +63,7 @@ public class ResetController {
             shooter.on(); // Fallback: стандартная velocity
         }
 
-        turret.returnToCenter(); // Возврат turret на 0 с PID
+        turret.returnToCenter(); // Return turret to 0° with PID
 
         wasResetPressed = false;
     }
