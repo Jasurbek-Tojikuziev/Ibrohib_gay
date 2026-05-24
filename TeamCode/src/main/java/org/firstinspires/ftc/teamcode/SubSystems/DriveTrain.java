@@ -21,8 +21,8 @@ public class DriveTrain {
     public void drive(Gamepad gamepad1, Gamepad gamepad2, Telemetry telemetry) {
         double slowModeFactor = gamepad1.right_trigger > 0.1 ? 0.3 : 1.0;
         double y  = gamepad1.left_stick_y  * slowModeFactor; // forward
-        double x  =  -gamepad1.right_stick_x * slowModeFactor; // strafe
-        double rx =  -gamepad1.left_stick_x * slowModeFactor; // turn
+        double x  =  -gamepad1.left_stick_x * slowModeFactor; // strafe
+        double rx =  -gamepad1.right_stick_x * slowModeFactor; // turn
 
         double frontLeftPower = -y - x - rx;
         double backLeftPower = -y + x + rx;

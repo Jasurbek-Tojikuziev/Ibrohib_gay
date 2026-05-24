@@ -25,6 +25,7 @@ public class RedAutoClose extends AutoBase {
                         new Pose(82.6915887, 78.6168224)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(45))
+                .setGlobalDeceleration()
                 .build();
 
         path2 = follower.pathBuilder()
@@ -34,6 +35,7 @@ public class RedAutoClose extends AutoBase {
                         new Pose(118.2056074, 59.8130841)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(0))
+                .setGlobalDeceleration()
                 .build();
 
         path3 = follower.pathBuilder()
@@ -42,6 +44,7 @@ public class RedAutoClose extends AutoBase {
                         new Pose(134.6261682, 61.5887850)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(25), Math.toRadians(25))
+                .setGlobalDeceleration()
                 .build();
     }
 

@@ -16,6 +16,8 @@ import com.bylazar.field.Style;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.ErrorCalculator;
+import com.pedropathing.control.FilteredPIDFCoefficients;
+import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.*;
 import com.pedropathing.math.*;
@@ -155,7 +157,7 @@ class LocalizationTest extends OpMode {
      */
     @Override
     public void loop() {
-        follower.setTeleOpDrive(-gamepad1.left_stick_y, -gamepad1.right_stick_x, -gamepad1.left_stick_x, true);
+        follower.setTeleOpDrive(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x, true);
         follower.update();
 
         telemetryM.debug("x:" + follower.getPose().getX());
@@ -820,6 +822,9 @@ class TranslationalTuner extends OpMode {
             }
         }
 
+        follower.setTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.transP, Constants.transI, Constants.transD, Constants.transF));
+        follower.setSecondaryTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.trans2P, Constants.trans2I, Constants.trans2D, Constants.trans2F));
+
         telemetryM.debug("Push the robot laterally to test the Translational PIDF(s).");
         telemetryM.addData("Zero Line", 0);
         telemetryM.addData("Error X", follower.errorCalculator.getTranslationalError().getXComponent());
@@ -896,6 +901,9 @@ class HeadingTuner extends OpMode {
             }
         }
 
+        follower.setHeadingPIDFCoefficients(new PIDFCoefficients(Constants.headP, Constants.headI, Constants.headD, Constants.headF));
+        follower.setSecondaryHeadingPIDFCoefficients(new PIDFCoefficients(Constants.head2P, Constants.head2I, Constants.head2D, Constants.head2F));
+
         telemetryM.debug("Turn the robot manually to test the Heading PIDF(s).");
         telemetryM.addData("Zero Line", 0);
         telemetryM.addData("Error", follower.errorCalculator.getHeadingError());
@@ -970,12 +978,18 @@ class DriveTuner extends OpMode {
         if (!follower.isBusy()) {
             if (forward) {
                 forward = false;
+                backwards.getPath(0).setBrakingStrength(Constants.brakingStrength);
                 follower.followPath(backwards);
             } else {
                 forward = true;
+                forwards.getPath(0).setBrakingStrength(Constants.brakingStrength);
                 follower.followPath(forwards);
             }
         }
+
+        follower.setDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.driveP, Constants.driveI, Constants.driveD, Constants.driveFilter, Constants.driveF));
+        follower.setSecondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.drive2P, Constants.drive2I, Constants.drive2D, Constants.drive2F, Constants.drive2Filter));
+        Constants.pathConstraints = new PathConstraints(0.99, 100, Constants.brakingStrength, Constants.brakingStart);
 
         telemetryM.debug("Driving forward?: " + forward);
         telemetryM.addData("Zero Line", 0);
@@ -1036,14 +1050,22 @@ class Line extends OpMode {
         if (!follower.isBusy()) {
             if (forward) {
                 forward = false;
+                backwards.setBrakingStrength(Constants.brakingStrength);
                 follower.followPath(backwards);
             } else {
                 forward = true;
+                forwards.setBrakingStrength(Constants.brakingStrength);
                 follower.followPath(forwards);
             }
         }
 
+        follower.setDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.driveP, Constants.driveI, Constants.driveD, Constants.driveFilter, Constants.driveF));
+        follower.setHeadingPIDFCoefficients(new PIDFCoefficients(Constants.headP, Constants.headI, Constants.headD, Constants.headF));
+        follower.setTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.transP, Constants.transI, Constants.transD, Constants.transF));
+        Constants.pathConstraints = new PathConstraints(0.99, 100, Constants.brakingStrength, Constants.brakingStart);
+
         telemetryM.debug("Driving Forward?: " + forward);
+        telemetryM.debug("driveP=" + Constants.driveP + " driveF=" + Constants.driveF + " braking=" + Constants.brakingStrength);
         telemetryM.update(telemetry);
     }
 }
@@ -1116,6 +1138,8 @@ class CentripetalTuner extends OpMode {
                 follower.followPath(forwards);
             }
         }
+
+        follower.setCentripetalScaling(Constants.centripetalScaling);
 
         telemetryM.debug("Driving away from the origin along the curve?: " + forward);
         telemetryM.update(telemetry);

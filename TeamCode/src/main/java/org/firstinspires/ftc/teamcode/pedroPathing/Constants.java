@@ -19,15 +19,15 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 public class Constants {
 
     // ── Translational PIDF ────────────────────────────────────────────────────
-    public static double transP = 0.02,  transI = 0, transD = 0.002, transF = 0.06;
+    public static double transP = 0.027, transI = 0, transD = 0.0042, transF = 0.08;
     public static double trans2P = 0, trans2I = 0, trans2D = 0, trans2F = 0;
 
     // ── Heading PIDF ──────────────────────────────────────────────────────────
-    public static double headP = 0.45, headI = 0, headD = 0.005, headF = 0.06;
-    public static double head2P = 0,  head2I = 0, head2D = 0, head2F = 0;
+    public static double headP = 0.40,  headI = 0, headD = 0.004,  headF = 0.076;
+    public static double head2P = 0.08, head2I = 0, head2D = 0.001, head2F = 0.001;
 
     // ── Drive PIDF ────────────────────────────────────────────────────────────
-    public static double driveP = 0.35,   driveI = 0, driveD = 0.045,   driveF = 0.6, driveFilter = 0.04;
+    public static double driveP = 0.35,   driveI = 0, driveD = 0.005,   driveF = 0.035, driveFilter = 0.4;
     public static double drive2P = 0, drive2I = 0, drive2D = 0, drive2F = 0, drive2Filter = 0;
 
     // ── Centripetal & Robot ───────────────────────────────────────────────────
@@ -35,8 +35,8 @@ public class Constants {
     public static double mass = 12;
 
     // ── Zero Power Accelerations ──────────────────────────────────────────────
-    public static double forwardZeroPowerAccel = -29.44;
-    public static double lateralZeroPowerAccel = -60.49;
+    public static double forwardZeroPowerAccel = -35.70;
+    public static double lateralZeroPowerAccel = -59.66;
 
     // ── Drive Velocity ────────────────────────────────────────────────────────
     public static double xVelocity = 78.28;
@@ -52,7 +52,9 @@ public class Constants {
             .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
             .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
-    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 0.8, 1);
+    public static double brakingStrength = 0.8;
+    public static double brakingStart = 0.8;
+    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, brakingStrength, brakingStart);
 
     public static Follower createFollower(HardwareMap hardwareMap) {
         FollowerConstants followerConstants = new FollowerConstants()
