@@ -19,15 +19,15 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 public class Constants {
 
     // ── Translational PIDF ────────────────────────────────────────────────────
-    public static double transP = 0.027, transI = 0, transD = 0.0042, transF = 0.08;
+    public static double transP = 0.045, transI = 0, transD = 0.0042, transF = 0.08;
     public static double trans2P = 0, trans2I = 0, trans2D = 0, trans2F = 0;
 
     // ── Heading PIDF ──────────────────────────────────────────────────────────
-    public static double headP = 0.40,  headI = 0, headD = 0.004,  headF = 0.076;
-    public static double head2P = 0.08, head2I = 0, head2D = 0.001, head2F = 0.001;
+    public static double headP = 1.3,   headI = 0, headD = 0.002,  headF = 0.076;
+    public static double head2P = 1.0,  head2I = 0, head2D = 0.005, head2F = 0.001;
 
     // ── Drive PIDF ────────────────────────────────────────────────────────────
-    public static double driveP = 0.35,   driveI = 0, driveD = 0.005,   driveF = 0.035, driveFilter = 0.4;
+    public static double driveP = 0.05,   driveI = 0, driveD = 0.005,   driveF = 0.035, driveFilter = 0.4;
     public static double drive2P = 0, drive2I = 0, drive2D = 0, drive2F = 0, drive2Filter = 0;
 
     // ── Centripetal & Robot ───────────────────────────────────────────────────

@@ -1060,8 +1060,11 @@ class Line extends OpMode {
         }
 
         follower.setDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.driveP, Constants.driveI, Constants.driveD, Constants.driveFilter, Constants.driveF));
+        follower.setSecondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.drive2P, Constants.drive2I, Constants.drive2D, Constants.drive2F, Constants.drive2Filter));
         follower.setHeadingPIDFCoefficients(new PIDFCoefficients(Constants.headP, Constants.headI, Constants.headD, Constants.headF));
+        follower.setSecondaryHeadingPIDFCoefficients(new PIDFCoefficients(Constants.head2P, Constants.head2I, Constants.head2D, Constants.head2F));
         follower.setTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.transP, Constants.transI, Constants.transD, Constants.transF));
+        follower.setSecondaryTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.trans2P, Constants.trans2I, Constants.trans2D, Constants.trans2F));
         Constants.pathConstraints = new PathConstraints(0.99, 100, Constants.brakingStrength, Constants.brakingStart);
 
         telemetryM.debug("Driving Forward?: " + forward);
