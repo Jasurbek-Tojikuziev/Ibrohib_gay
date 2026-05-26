@@ -53,26 +53,26 @@ public class RedAutoClose extends AutoBase {
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(82.888, 70.916),
-                        new Pose(86.255, 59.541),
-                        new Pose(118.718, 59.304)
+                        new Pose(91.235, 63.326),
+                        new Pose(115.930, 61.105)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(340), Math.toRadians(0))
                 .build();
 
-        // Path 5 — scoring → extended scoring position, Bezier curve (0° → 30°)
+        // Path 5 — scoring → extended scoring position, Bezier curve (heading constant 35°)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(118.718, 59.304),
-                        new Pose(123.763, 58.679),
-                        new Pose(128.219, 62.277)
+                        new Pose(115.930, 61.105),
+                        new Pose(123.763, 60.869),
+                        new Pose(128.219, 61.472)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(30))
+                .setLinearHeadingInterpolation(Math.toRadians(35), Math.toRadians(35))
                 .build();
 
         // Path 6 — extended scoring → return/park (25° → 340°)
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(128.219, 62.277),
+                        new Pose(128.219, 61.472),
                         new Pose(83.075, 70.654)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(25), Math.toRadians(340))
@@ -95,8 +95,8 @@ public class RedAutoClose extends AutoBase {
                 }
                 break;
 
-            case 2: // Scoring → immediately return to intake
-                if (h.pathDone(0)) {
+            case 2: // Wait 500 ms at scoring, then return to intake
+                if (h.pathDone(0.5)) {
                     follower.followPath(path3, true);
                     setPathState(3);
                 }
