@@ -24,62 +24,58 @@ public class RedAutoClose extends AutoBase {
         // Path 1 — start → intake position (heading constant 45°)
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(117.6822429, 128.6728971),
-                        new Pose(82.9158878, 70.9906542)
+                        new Pose(117.682, 128.673),
+                        new Pose(82.916, 70.991)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(45))
-                .setGlobalDeceleration()
                 .build();
 
-        // Path 2 — intake → scoring position (0° → 340°)
+        // Path 2 — intake → scoring position, Bezier curve (45° → 0°)
         path2 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Pose(82.9158878, 70.9906542),
-                        new Pose(123.3551401, 58.8411215)
+                .addPath(new BezierCurve(
+                        new Pose(82.916, 70.991),
+                        new Pose(85.994, 58.339),
+                        new Pose(123.355, 58.841)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(340))
-                .setGlobalDeceleration()
+                .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(0))
                 .build();
 
         // Path 3 — scoring → intake position (heading constant 340°)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(123.3551401, 58.8411215),
-                        new Pose(82.8878504, 70.9158878)
+                        new Pose(123.355, 58.841),
+                        new Pose(82.888, 70.916)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(340), Math.toRadians(340))
-                .setGlobalDeceleration()
                 .build();
 
-        // Path 4 — intake → scoring position (340° → 0°)
+        // Path 4 — intake → scoring position, Bezier curve (340° → 0°)
         path4 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Pose(82.8878504, 70.9158878),
-                        new Pose(118.7181525, 57.7021755)
+                .addPath(new BezierCurve(
+                        new Pose(82.888, 70.916),
+                        new Pose(85.857, 58.346),
+                        new Pose(118.718, 57.304)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(340), Math.toRadians(0))
-                .setGlobalDeceleration()
                 .build();
 
         // Path 5 — scoring → extended scoring position, Bezier curve (0° → 30°)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(118.7181525, 57.7021755),
-                        new Pose(126.5514, 56.6869),
-                        new Pose(130.2186760, 60.2774653)
+                        new Pose(118.718, 57.304),
+                        new Pose(126.551, 56.687),
+                        new Pose(128.219, 65.277)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(30))
-                .setGlobalDeceleration()
                 .build();
 
         // Path 6 — extended scoring → return/park (25° → 340°)
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(130.2186760, 60.2774653),
-                        new Pose(83.0747663, 70.6542056)
+                        new Pose(128.219, 65.277),
+                        new Pose(83.075, 70.654)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(25), Math.toRadians(340))
-                .setGlobalDeceleration()
                 .build();
     }
 
