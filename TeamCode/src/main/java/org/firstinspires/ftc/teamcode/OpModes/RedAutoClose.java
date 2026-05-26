@@ -53,8 +53,8 @@ public class RedAutoClose extends AutoBase {
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(82.888, 70.916),
-                        new Pose(85.857, 58.346),
-                        new Pose(118.718, 57.304)
+                        new Pose(86.255, 59.541),
+                        new Pose(118.718, 59.304)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(340), Math.toRadians(0))
                 .build();
@@ -62,9 +62,9 @@ public class RedAutoClose extends AutoBase {
         // Path 5 — scoring → extended scoring position, Bezier curve (0° → 30°)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(118.718, 57.304),
-                        new Pose(126.551, 56.687),
-                        new Pose(128.219, 65.277)
+                        new Pose(118.718, 59.304),
+                        new Pose(123.763, 58.679),
+                        new Pose(128.219, 62.277)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(30))
                 .build();
@@ -72,7 +72,7 @@ public class RedAutoClose extends AutoBase {
         // Path 6 — extended scoring → return/park (25° → 340°)
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(128.219, 65.277),
+                        new Pose(128.219, 62.277),
                         new Pose(83.075, 70.654)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(25), Math.toRadians(340))
