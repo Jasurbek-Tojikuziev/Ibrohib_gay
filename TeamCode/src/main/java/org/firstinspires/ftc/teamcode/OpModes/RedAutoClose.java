@@ -104,16 +104,16 @@ public class RedAutoClose extends AutoBase {
                 }
                 break;
 
-            case 12: // 1200 ms shooting (intake continues) → intake OFF, drive to scoring
+            case 12: // 1200 ms shooting (intake continues) → drive to scoring, intake stays ON
                 if (h.timePassed(1.2)) {
-                    intake.off();
                     follower.followPath(path2, true);
                     setPathState(2);
                 }
                 break;
 
-            case 2: // path2 done + 500 ms at scoring → return to collection
+            case 2: // path2 done + 500 ms at scoring (intake ON) → intake OFF, return to collection
                 if (h.pathDone(0.5)) {
+                    intake.off();
                     follower.followPath(path3, true);
                     setPathState(3);
                 }
@@ -135,23 +135,23 @@ public class RedAutoClose extends AutoBase {
                 }
                 break;
 
-            case 32: // 1200 ms shooting (intake continues) → intake OFF, drive to scoring
+            case 32: // 1200 ms shooting (intake continues) → drive to scoring, intake stays ON
                 if (h.timePassed(1.2)) {
-                    intake.off();
                     follower.followPath(path4, true);
                     setPathState(4);
                 }
                 break;
 
-            case 4: // path4 done → immediately drive to extended scoring
+            case 4: // path4 done → immediately drive to extended scoring (intake stays ON)
                 if (h.pathDone(0)) {
                     follower.followPath(path5, true);
                     setPathState(5);
                 }
                 break;
 
-            case 5: // path5 done + 2000 ms at extended scoring → return/park
+            case 5: // path5 done + 2000 ms at extended scoring (intake ON) → intake OFF, return/park
                 if (h.pathDone(2.0)) {
+                    intake.off();
                     follower.followPath(path6, true);
                     setPathState(6);
                 }
