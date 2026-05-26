@@ -25,61 +25,61 @@ public class RedAutoClose extends AutoBase {
     @Override
     protected void buildPaths() {
 
-        // Path 1 — start → intake position (heading constant 45°)
+        // Path 1 — start → first collection position (heading constant 45°)
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(117.682, 128.673),
-                        new Pose(82.916, 70.991)
+                        new Pose(78.916, 73.991)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(45))
                 .build();
 
-        // Path 2 — intake → scoring position, Bezier curve (45° → 0°)
+        // Path 2 — collection → scoring, Bezier curve (45° → 0°)
         path2 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(82.916, 70.991),
+                        new Pose(80.916, 70.991),
                         new Pose(85.994, 58.339),
                         new Pose(123.355, 58.841)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(0))
                 .build();
 
-        // Path 3 — scoring → intake position (heading constant 340°)
+        // Path 3 — scoring → second collection position (heading constant 340°)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(123.355, 58.841),
-                        new Pose(82.888, 70.916)
+                        new Pose(85.278, 77.688)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(340), Math.toRadians(340))
                 .build();
 
-        // Path 4 — intake → scoring position, Bezier curve (340° → 0°)
+        // Path 4 — collection → scoring, Bezier curve (340° → 0°)
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(82.888, 70.916),
+                        new Pose(85.278, 77.688),
                         new Pose(91.235, 63.326),
                         new Pose(115.930, 61.105)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(340), Math.toRadians(0))
                 .build();
 
-        // Path 5 — scoring → extended scoring position, Bezier curve (heading constant 35°)
+        // Path 5 — scoring → extended scoring, Bezier curve (heading constant 32°)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(115.930, 61.105),
                         new Pose(123.763, 60.869),
-                        new Pose(131, 61.472)
+                        new Pose(130.000, 61.472)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(32), Math.toRadians(32))
+                .setLinearHeadingInterpolation(Math.toRadians(27), Math.toRadians(27))
                 .build();
 
         // Path 6 — extended scoring → return/park (25° → 340°)
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(128.219, 61.472),
-                        new Pose(83.075, 70.654)
+                        new Pose(131.000, 61.472),
+                        new Pose(85.465, 77.625)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(25), Math.toRadians(340))
+                .setLinearHeadingInterpolation(Math.toRadians(27), Math.toRadians(340))
                 .build();
     }
 
@@ -98,7 +98,7 @@ public class RedAutoClose extends AutoBase {
                     shot1Triggered = true;
                     shooter.startShoot();
                 }
-                if (h.pathDone(1.0)) {
+                if (h.pathDone(1.2)) {
                     follower.followPath(path2, true); // intake still ON
                     setPathState(2);
                 }
@@ -118,7 +118,7 @@ public class RedAutoClose extends AutoBase {
                     intake.on();
                     shooter.startShoot();
                 }
-                if (h.pathDone(1.0)) {
+                if (h.pathDone(1.2)) {
                     intake.on(); // ensure ON for path4→path5 segment
                     follower.followPath(path4, true);
                     setPathState(4);
