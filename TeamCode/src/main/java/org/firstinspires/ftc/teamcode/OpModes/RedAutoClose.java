@@ -15,10 +15,6 @@ public class RedAutoClose extends AutoBase {
 
     private PathChain path1, path2, path3, path4, path5, path6;
 
-    // shot flags — prevent re-triggering after FSM completes and goes IDLE again
-    private boolean shot1Triggered = false;
-    private boolean shot2Triggered = false;
-
     @Override protected boolean isRedAlliance() { return true; }
     @Override protected Pose getStartPose() { return new Pose(117.6822429, 128.6728971, Math.toRadians(45)); }
 
@@ -29,7 +25,7 @@ public class RedAutoClose extends AutoBase {
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(117.682, 128.673),
-                        new Pose(78.916, 73.991)
+                        new Pose(79.916, 75.991)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(45), Math.toRadians(45))
                 .build();
@@ -68,9 +64,9 @@ public class RedAutoClose extends AutoBase {
                 .addPath(new BezierCurve(
                         new Pose(115.930, 61.105),
                         new Pose(123.763, 60.869),
-                        new Pose(130.000, 61.472)
+                        new Pose(129.50, 61.272)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(27), Math.toRadians(27))
+                .setLinearHeadingInterpolation(Math.toRadians(25.7), Math.toRadians(25.7))
                 .build();
 
         // Path 6 — extended scoring → return/park (25° → 340°)
@@ -79,7 +75,7 @@ public class RedAutoClose extends AutoBase {
                         new Pose(131.000, 61.472),
                         new Pose(85.465, 77.625)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(27), Math.toRadians(340))
+                .setLinearHeadingInterpolation(Math.toRadians(25.7), Math.toRadians(340))
                 .build();
     }
 
@@ -87,54 +83,75 @@ public class RedAutoClose extends AutoBase {
     protected void autonomousPathUpdate() {
         switch (pathState) {
 
-            case 0: // Start path1 — intake ON for entire path1→path2 segment
-                intake.on();
+            // ── First cycle ────────────────────────────────────────────────────
+
+            case 0: // Drive to first collection position
                 follower.followPath(path1, true);
                 setPathState(1);
                 break;
 
-            case 1: // 1000 ms wait at collection — intake continues, shoot once on arrival
-                if (!follower.isBusy() && !shot1Triggered) {
-                    shot1Triggered = true;
-                    shooter.startShoot();
+            case 1: // Wait for path1 to finish → intake ON
+                if (h.pathDone(0)) {
+                    intake.on();
+                    setPathState(11);
                 }
-                if (h.pathDone(1.2)) {
-                    follower.followPath(path2, true); // intake still ON
+                break;
+
+            case 11: // 500 ms intake collection before shooting
+                if (h.timePassed(0.5)) {
+                    shooter.startShoot();
+                    setPathState(12);
+                }
+                break;
+
+            case 12: // 1200 ms shooting (intake continues) → intake OFF, drive to scoring
+                if (h.timePassed(1.2)) {
+                    intake.off();
+                    follower.followPath(path2, true);
                     setPathState(2);
                 }
                 break;
 
-            case 2: // 500 ms wait at scoring — intake still ON, then off when returning
+            case 2: // path2 done + 500 ms at scoring → return to collection
                 if (h.pathDone(0.5)) {
-                    intake.off();
                     follower.followPath(path3, true);
                     setPathState(3);
                 }
                 break;
 
-            case 3: // 1000 ms wait — intake ON (continue intaking), shoot once on arrival
-                if (!follower.isBusy() && !shot2Triggered) {
-                    shot2Triggered = true;
+            // ── Second cycle ───────────────────────────────────────────────────
+
+            case 3: // Wait for path3 to finish → intake ON
+                if (h.pathDone(0)) {
                     intake.on();
-                    shooter.startShoot();
+                    setPathState(31);
                 }
-                if (h.pathDone(1.2)) {
-                    intake.on(); // ensure ON for path4→path5 segment
+                break;
+
+            case 31: // 500 ms intake collection before shooting
+                if (h.timePassed(0.5)) {
+                    shooter.startShoot();
+                    setPathState(32);
+                }
+                break;
+
+            case 32: // 1200 ms shooting (intake continues) → intake OFF, drive to scoring
+                if (h.timePassed(1.2)) {
+                    intake.off();
                     follower.followPath(path4, true);
                     setPathState(4);
                 }
                 break;
 
-            case 4: // path4 done → immediately start path5 — intake stays ON
+            case 4: // path4 done → immediately drive to extended scoring
                 if (h.pathDone(0)) {
                     follower.followPath(path5, true);
                     setPathState(5);
                 }
                 break;
 
-            case 5: // 2000 ms wait at extended scoring — intake continues, then off for return
+            case 5: // path5 done + 2000 ms at extended scoring → return/park
                 if (h.pathDone(2.0)) {
-                    intake.off();
                     follower.followPath(path6, true);
                     setPathState(6);
                 }
