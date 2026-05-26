@@ -16,8 +16,11 @@ import com.bylazar.field.Style;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
 import com.pedropathing.ErrorCalculator;
+import com.pedropathing.VectorCalculator;
 import com.pedropathing.control.FilteredPIDFCoefficients;
 import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PredictiveBrakingCoefficients;
+import com.pedropathing.control.PredictiveBrakingController;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.*;
 import com.pedropathing.math.*;
@@ -26,6 +29,9 @@ import com.pedropathing.telemetry.SelectableOpMode;
 import com.pedropathing.util.*;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+import android.annotation.SuppressLint;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,6 +69,7 @@ public class Tuning extends SelectableOpMode {
                 a.add("Lateral Velocity Tuner", LateralVelocityTuner::new);
                 a.add("Forward Zero Power Acceleration Tuner", ForwardZeroPowerAccelerationTuner::new);
                 a.add("Lateral Zero Power Acceleration Tuner", LateralZeroPowerAccelerationTuner::new);
+                a.add("Predictive Braking Tuner", PredictiveBrakingTuner::new);
             });
             s.folder("Manual", p -> {
                 p.add("Translational Tuner", TranslationalTuner::new);
@@ -117,6 +124,22 @@ public class Tuning extends SelectableOpMode {
     public static void stopRobot() {
         follower.startTeleopDrive(true);
         follower.setTeleOpDrive(0,0,0,true);
+    }
+
+    /**
+     * Live-updates predictive braking coefficients on the running follower.
+     * Uses reflection because Follower 2.1.2 has no public setPredictiveBrakingCoefficients().
+     * Call this each loop iteration to propagate Panels changes to kP/kLinear/kQuadratic.
+     */
+    public static void updatePredictiveBraking() {
+        try {
+            VectorCalculator vc = follower.getVectorCalculator();
+            java.lang.reflect.Field pbcField = vc.getClass().getDeclaredField("predictiveBrakingController");
+            pbcField.setAccessible(true);
+            PredictiveBrakingController pbc = (PredictiveBrakingController) pbcField.get(vc);
+            pbc.setCoefficients(new PredictiveBrakingCoefficients(
+                    Constants.predictiveKP, Constants.predictiveKLinear, Constants.predictiveKQuadratic));
+        } catch (Exception ignored) {}
     }
 }
 
@@ -989,7 +1012,8 @@ class DriveTuner extends OpMode {
 
         follower.setDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.driveP, Constants.driveI, Constants.driveD, Constants.driveFilter, Constants.driveF));
         follower.setSecondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.drive2P, Constants.drive2I, Constants.drive2D, Constants.drive2F, Constants.drive2Filter));
-        Constants.pathConstraints = new PathConstraints(0.99, 100, Constants.brakingStrength, Constants.brakingStart);
+        follower.setConstraints(new PathConstraints(0.97, 100, Constants.brakingStrength, Constants.brakingStart));
+        Tuning.updatePredictiveBraking();
 
         telemetryM.debug("Driving forward?: " + forward);
         telemetryM.addData("Zero Line", 0);
@@ -1065,7 +1089,8 @@ class Line extends OpMode {
         follower.setSecondaryHeadingPIDFCoefficients(new PIDFCoefficients(Constants.head2P, Constants.head2I, Constants.head2D, Constants.head2F));
         follower.setTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.transP, Constants.transI, Constants.transD, Constants.transF));
         follower.setSecondaryTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.trans2P, Constants.trans2I, Constants.trans2D, Constants.trans2F));
-        Constants.pathConstraints = new PathConstraints(0.99, 100, Constants.brakingStrength, Constants.brakingStart);
+        follower.setConstraints(new PathConstraints(0.97, 100, Constants.brakingStrength, Constants.brakingStart));
+        Tuning.updatePredictiveBraking();
 
         telemetryM.debug("Driving Forward?: " + forward);
         telemetryM.debug("driveP=" + Constants.driveP + " driveF=" + Constants.driveF + " braking=" + Constants.brakingStrength);
@@ -1266,6 +1291,139 @@ class Circle extends OpMode {
 
         if (follower.atParametricEnd()) {
             follower.followPath(circle);
+        }
+    }
+}
+
+/**
+ * This is the PredictiveBrakingTuner OpMode. It runs the robot forward and backward at various
+ * power levels, recording velocity and stopping distance to generate kQuadratic and kLinear
+ * braking coefficients.
+ *
+ * @author Ashay Sarda - 19745 Turtle Walkers
+ * @author Jacob Ophoven - 18535 Frozen Code
+ * @version 1.0, 12/26/2025
+ */
+class PredictiveBrakingTuner extends OpMode {
+    private static final double[] TEST_POWERS = {1, 1, 1, 0.9, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2};
+    private static final double BRAKING_POWER = -0.2;
+    private static final int DRIVE_TIME_MS = 1000;
+
+    private enum State { START_MOVE, WAIT_DRIVE_TIME, APPLY_BRAKE, WAIT_BRAKE_TIME, RECORD, DONE }
+
+    private static class BrakeRecord {
+        double timeMs; Pose pose; double velocity;
+        BrakeRecord(double timeMs, Pose pose, double velocity) {
+            this.timeMs = timeMs; this.pose = pose; this.velocity = velocity;
+        }
+    }
+
+    private State state = State.START_MOVE;
+    private final ElapsedTime timer = new ElapsedTime();
+    private int iteration = 0;
+    private Vector startPosition;
+    private double measuredVelocity;
+    private final List<double[]> velocityToBrakingDistance = new ArrayList<>();
+    private final List<BrakeRecord> brakeData = new ArrayList<>();
+
+    @Override public void init() {}
+
+    @Override
+    public void init_loop() {
+        telemetryM.debug("The robot will move forwards and backwards starting at max speed and slowing down.");
+        telemetryM.debug("Make sure you have enough room. Leave at least 4-5 feet.");
+        telemetryM.debug("After stopping, kQuadratic and kLinear will be displayed.");
+        telemetryM.debug("Press B on gamepad 1 to stop.");
+        telemetryM.update(telemetry);
+        follower.update();
+        drawOnlyCurrent();
+    }
+
+    @Override
+    public void start() {
+        timer.reset();
+        follower.update();
+        follower.startTeleopDrive(true);
+    }
+
+    /** Fits d = kLinear*v + kQuadratic*v² to the data using least-squares. Returns [kLinear, kQuadratic]. */
+    private static double[] quadraticFit(List<double[]> data) {
+        // Solve 2x2 normal equations for y = a*x + b*x^2 (no constant term, distance=0 at v=0)
+        double s11 = 0, s12 = 0, s22 = 0, r1 = 0, r2 = 0;
+        for (double[] point : data) {
+            double v = point[0], d = point[1];
+            double x1 = v, x2 = v * v;
+            s11 += x1 * x1; s12 += x1 * x2; s22 += x2 * x2;
+            r1  += x1 * d;  r2  += x2 * d;
+        }
+        double det = s11 * s22 - s12 * s12;
+        if (Math.abs(det) < 1e-12) return new double[]{0.05, 0.001};
+        double kLinear    = (s22 * r1 - s12 * r2) / det;
+        double kQuadratic = (s11 * r2 - s12 * r1) / det;
+        return new double[]{kLinear, kQuadratic};
+    }
+
+    @SuppressLint("DefaultLocale")
+    @Override
+    public void loop() {
+        follower.update();
+
+        if (gamepad1.b) {
+            stopRobot();
+            requestOpModeStop();
+            return;
+        }
+
+        double direction = (iteration % 2 == 0) ? 1 : -1;
+
+        switch (state) {
+            case START_MOVE: {
+                if (iteration >= TEST_POWERS.length) { state = State.DONE; break; }
+                follower.setMaxPower(TEST_POWERS[iteration]);
+                follower.setTeleOpDrive(direction, 0, 0, true);
+                timer.reset();
+                state = State.WAIT_DRIVE_TIME;
+                break;
+            }
+            case WAIT_DRIVE_TIME: {
+                if (timer.milliseconds() >= DRIVE_TIME_MS) {
+                    measuredVelocity = follower.getVelocity().getMagnitude();
+                    startPosition = follower.getPose().getAsVector();
+                    state = State.APPLY_BRAKE;
+                }
+                break;
+            }
+            case APPLY_BRAKE: {
+                follower.setTeleOpDrive(BRAKING_POWER * direction, 0, 0, true);
+                timer.reset();
+                state = State.WAIT_BRAKE_TIME;
+                break;
+            }
+            case WAIT_BRAKE_TIME: {
+                brakeData.add(new BrakeRecord(timer.milliseconds(), follower.getPose(), follower.getVelocity().getMagnitude()));
+                if (follower.getVelocity().dot(new Vector(direction, follower.getPose().getHeading())) <= 0) {
+                    state = State.RECORD;
+                }
+                break;
+            }
+            case RECORD: {
+                double brakingDistance = follower.getPose().getAsVector().minus(startPosition).getMagnitude();
+                velocityToBrakingDistance.add(new double[]{measuredVelocity, brakingDistance});
+                telemetryM.debug("Test " + iteration, String.format("v=%.3f  d=%.3f", measuredVelocity, brakingDistance));
+                telemetryM.update(telemetry);
+                iteration++;
+                state = State.START_MOVE;
+                break;
+            }
+            case DONE: {
+                stopRobot();
+                double[] coefficients = quadraticFit(velocityToBrakingDistance);
+                telemetryM.debug("Tuning Complete!");
+                telemetryM.debug("kQuadratic", coefficients[1]);
+                telemetryM.debug("kLinear", coefficients[0]);
+                telemetryM.update(telemetry);
+                break;
+            }
         }
     }
 }

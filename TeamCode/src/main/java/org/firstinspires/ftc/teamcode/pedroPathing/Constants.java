@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.control.FilteredPIDFCoefficients;
 import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PredictiveBrakingCoefficients;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.FollowerConstants;
 import com.pedropathing.ftc.FollowerBuilder;
@@ -19,19 +20,24 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 public class Constants {
 
     // ── Translational PIDF ────────────────────────────────────────────────────
-    public static double transP = 0.045, transI = 0, transD = 0.0042, transF = 0.08;
-    public static double trans2P = 0, trans2I = 0, trans2D = 0, trans2F = 0;
+    public static double transP = 0.2,   transI = 0, transD = 0.0042,  transF = 0.08;
+    public static double trans2P = 0.1,  trans2I = 0, trans2D = 0.00042, trans2F = 0.008;
 
     // ── Heading PIDF ──────────────────────────────────────────────────────────
-    public static double headP = 1.3,   headI = 0, headD = 0.002,  headF = 0.076;
-    public static double head2P = 1.0,  head2I = 0, head2D = 0.005, head2F = 0.001;
+    public static double headP = 1.2,   headI = 0, headD = 0.001,   headF = 0.04;
+    public static double head2P = 0.2,  head2I = 0, head2D = 0.0003, head2F = 0.02;
 
     // ── Drive PIDF ────────────────────────────────────────────────────────────
-    public static double driveP = 0.05,   driveI = 0, driveD = 0.005,   driveF = 0.035, driveFilter = 0.4;
-    public static double drive2P = 0, drive2I = 0, drive2D = 0, drive2F = 0, drive2Filter = 0;
+    public static double driveP = 0.5,   driveI = 0, driveD = 0.003,   driveF = 0.1,  driveFilter = 0.1;
+    public static double drive2P = 0.007, drive2I = 0, drive2D = 0.0004, drive2F = 0.2, drive2Filter = 0.1;
+
+    // ── Predictive Braking ────────────────────────────────────────────────────
+    public static double predictiveKP        = 0.1;
+    public static double predictiveKLinear   = 0.070291;
+    public static double predictiveKQuadratic = 0.003206;
 
     // ── Centripetal & Robot ───────────────────────────────────────────────────
-    public static double centripetalScaling = 0.00058;
+    public static double centripetalScaling = 0;  // disabled — predictive braking accounts for this
     public static double mass = 12;
 
     // ── Zero Power Accelerations ──────────────────────────────────────────────
@@ -54,7 +60,7 @@ public class Constants {
 
     public static double brakingStrength = 0.8;
     public static double brakingStart = 0.8;
-    public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, brakingStrength, brakingStart);
+    public static PathConstraints pathConstraints = new PathConstraints(0.97, 100, brakingStrength, brakingStart);
 
     public static Follower createFollower(HardwareMap hardwareMap) {
         FollowerConstants followerConstants = new FollowerConstants()
@@ -66,6 +72,7 @@ public class Constants {
                 .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(head2P, head2I, head2D, head2F))
                 .drivePIDFCoefficients(new FilteredPIDFCoefficients(driveP, driveI, driveD, driveF, driveFilter))
                 .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(drive2P, drive2I, drive2D, drive2F, drive2Filter))
+                .predictiveBrakingCoefficients(new PredictiveBrakingCoefficients(predictiveKP, predictiveKLinear, predictiveKQuadratic))
                 .centripetalScaling(centripetalScaling)
                 .mass(mass);
 
