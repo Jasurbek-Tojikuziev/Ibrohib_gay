@@ -17,11 +17,13 @@ public class IntakeController {
     public void update() {
         if (gamepad == null) return;
 
-        boolean gp1Intake = gamepad1 != null && gamepad1.left_trigger > 0.5;
+        // GP1 right trigger → intake ON, GP1 left trigger → intake REVERSE
+        boolean gp1RightTrigger = gamepad.right_trigger > 0.5;
+        boolean gp1LeftTrigger  = gamepad.left_trigger  > 0.5;
 
-        if (gamepad.right_trigger > 0.5 || gp1Intake) {
+        if (gp1RightTrigger) {
             intake.on();
-        } else if (gamepad.left_trigger > 0.5) {
+        } else if (gp1LeftTrigger) {
             intake.reverse();
         } else {
             intake.off();

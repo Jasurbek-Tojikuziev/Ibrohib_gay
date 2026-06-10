@@ -1,17 +1,29 @@
 package org.firstinspires.ftc.teamcode.SubSystems;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 
 /**
  * Turret auto-aim: odometry-based targeting with optional physics lead compensation.
  */
+@Config
 public class TurretAimer {
+
+    // Camera→flywheel parallax correction for relocalization (dashboard-tunable).
+    // The camera sits CAMERA_RIGHT_OFFSET_IN beside the flywheel, so without this the
+    // relocalization aims the camera (not the flywheel) at the goal. Flip the sign if the
+    // side-miss gets worse; 0 disables. Auto-scales with distance.
+    public static double RELOC_PARALLAX_SIGN = 1.0;
+
+    // Constant aim trim (deg) added to the goal aim — manual bias correction. + / - to shift sides.
+    public static double AIM_TRIM_DEG = 1.0;
 
     private final TurretMotor      motor;
     private final TurretBallistics ballistics;
     private final Follower         follower;
     private final Localizer        localizer;
+    private final Vision           vision;
 
     private Pose    goalPose = null;
     private Double  goalX    = null;
@@ -21,34 +33,122 @@ public class TurretAimer {
 
     private double smoothedTargetAngle  = 0.0;
     private double savedCloseRangeAngle = Double.NaN;
-    private double autoAimOffset        = 0.0;
+    private double autoAimOffset        = 0.0; // vision-relocalization correction added to the odometry aim
+    private double smoothedTx           = 0.0; // EMA of camera horizontal angle to tag (ty, sideways cam)
+
+    // ── Aiming model ───────────────────────────────────────────────────────────
+    // PRIMARY aim is ODOMETRY (zero latency, smooth). The camera is used only to
+    // RELOCALIZE: when the robot is settled and a tag is stably visible, if the camera's
+    // measured angle to the tag disagrees with odometry by more than a threshold, snap that
+    // difference into autoAimOffset. The camera is never in the fast loop (its latency would
+    // make the turret oscillate), so this avoids that entirely.
+    //
+    // Camera is mounted 90° sideways → the LEFT/RIGHT angle to the tag is in ty
+    // (getTargetPitch), not tx. visionSign (+1/-1) maps ty to turret-angle direction.
+    private double visionSign        = 1.0;   // +1/-1: camTagAngle = currentAngle + visionSign*ty (flipped after 180° cam rotation)
+    private double relocThresholdDeg = 1.0;   // only correct when residual exceeds this (deg)
+    private double relocOffset       = 0.0;   // camera drift correction (separate from manual autoAimOffset)
+    private double settleAngVel      = 8.0;   // deg/s — below this counts as "not rotating"
+    private double settleTransVel    = 4.0;   // in/s  — below this counts as "not translating"
+    private double visionMaxLead     = 6.0;   // (vision-only test mode) cap on chase lead
+    private double visionParallaxSign = 2.0;  // aim-shift strength: covers 7cm parallax + tag→goal offset (tuned)
+
+    private static final double VISION_TX_EMA        = 0.4;  // camera-angle smoothing
+    private static final int    SETTLE_FRAMES        = 5;    // consecutive still loops before trusting
+    private static final double RELOC_MAX_CORRECTION = 45.0; // reject ongoing reads bigger than this (bad frame)
+    private boolean firstLockDone = false;                   // first settled lock snaps fully (initial localize)
+    private long    lastCorrectionTime = 0L;                 // for the post-correction cooldown
+    private static final double RELOC_COOLDOWN_SEC = 0.4;    // wait after a correction so turret+camera settle
+
+    // Motion estimate (for "settled" detection)
+    private double prevHeadingRad = Double.NaN, prevX = 0.0, prevY = 0.0;
+    private long   prevMotionTime = 0L;
+    private double angVelDeg = 0.0, transVel = 0.0;
+    private int    settledFrames = 0;
+
+    // Telemetry
+    private double  lastResidual = 0.0;
+    private boolean didCorrect   = false;
+
+    /** Clear the camera drift correction (call on a manual position reset — odometry is now known). */
+    public void clearRelocalization() {
+        relocOffset   = 0.0;
+        firstLockDone = false;
+    }
+
+    /** Configure camera-relocalization: sign (+1/-1), correction threshold (deg), settle limits. */
+    public void setRelocalization(double sign, double thresholdDeg,
+                                  double settleAngVelDegPerSec, double settleTransVelInPerSec) {
+        this.visionSign     = sign;
+        this.relocThresholdDeg = thresholdDeg;
+        this.settleAngVel   = settleAngVelDegPerSec;
+        this.settleTransVel = settleTransVelInPerSec;
+    }
+
+    /** (vision-only test mode) set aim direction, chase lead cap, and parallax sign (+1/-1/0). */
+    public void setVisionTuning(double sign, double maxLead, double parallaxSign) {
+        this.visionSign         = sign;
+        this.visionMaxLead      = maxLead;
+        this.visionParallaxSign = parallaxSign;
+    }
+
+    // Telemetry getters
+    public double  getRelocResidual()    { return lastResidual; }
+    public double  getRelocOffset()      { return relocOffset; }
+    public boolean isSettledForReloc()   { return isSettled(); }
+    public double  getAngularVelDeg()    { return angVelDeg; }
+    public double  getTranslationVel()   { return transVel; }
+    public boolean didReloc()            { return didCorrect; }
 
     // ── Constructors ─────────────────────────────────────────────────────────
 
-    /** TeleOp: Pedro Follower for odometry. Physics ballistics enabled. */
+    /** TeleOp: Pedro Follower + Limelight vision. Vision overrides odometry when tag visible. */
+    public TurretAimer(TurretMotor motor, TurretBallistics ballistics, Follower follower, Vision vision) {
+        this.motor      = motor;
+        this.ballistics = ballistics;
+        this.follower   = follower;
+        this.localizer  = null;
+        this.vision     = vision;
+        this.smoothedTargetAngle = motor.getCurrentAngle();
+    }
+
+    /** TeleOp: Pedro Follower for odometry only, no vision. */
     public TurretAimer(TurretMotor motor, TurretBallistics ballistics, Follower follower) {
         this.motor      = motor;
         this.ballistics = ballistics;
         this.follower   = follower;
         this.localizer  = null;
+        this.vision     = null;
         this.smoothedTargetAngle = motor.getCurrentAngle();
     }
 
-    /** Auto: Localizer for odometry. No physics (Localizer has no velocity API). */
+    /** Auto: Localizer for odometry. No physics, no vision. */
     public TurretAimer(TurretMotor motor, TurretBallistics ballistics, Localizer localizer) {
         this.motor      = motor;
         this.ballistics = ballistics;
         this.follower   = null;
         this.localizer  = localizer;
+        this.vision     = null;
         this.smoothedTargetAngle = motor.getCurrentAngle();
     }
 
-    /** Basic test: no odometry, no physics. */
+    /** Vision-only aim test: Limelight tx tracking, no odometry, no physics. */
+    public TurretAimer(TurretMotor motor, Vision vision) {
+        this.motor      = motor;
+        this.ballistics = null;
+        this.follower   = null;
+        this.localizer  = null;
+        this.vision     = vision;
+        this.smoothedTargetAngle = motor.getCurrentAngle();
+    }
+
+    /** Basic test: no odometry, no physics, no vision. */
     public TurretAimer(TurretMotor motor) {
         this.motor      = motor;
         this.ballistics = null;
         this.follower   = null;
         this.localizer  = null;
+        this.vision     = null;
     }
 
     // ── Goal setup ───────────────────────────────────────────────────────────
@@ -102,25 +202,180 @@ public class TurretAimer {
     public double getSmoothedTargetAngle() { return smoothedTargetAngle; }
 
     public void autoAim() {
-        if (hasGoal() && (follower != null || localizer != null)) {
-            double angle = calculateTargetAngle() + autoAimOffset;
-            angle = Math.max(TurretMotor.MIN_ANGLE, Math.min(TurretMotor.MAX_ANGLE, angle));
+        boolean haveOdometry = hasGoal() && (follower != null || localizer != null);
+
+        if (haveOdometry) {
+            // Camera relocalization updates autoAimOffset (only when settled + tag stable).
+            updateVisionRelocalization();
+
+            // Until the camera has localized the turret once, HOLD position. This stops the
+            // turret from swinging to a wrong odometry target (unknown/wrong start pose) and
+            // sweeping the camera off the tag before it can correct. Once locked, aim at goal.
+            // aim = odometry angle to goal + camera drift correction (relocOffset) + manual trim.
+            // Odometry has a valid start pose (Auto handoff / fixed), so aim immediately; the
+            // camera snaps relocOffset to truth on the first settled lock and on later drift.
+            double angle = calculateTargetAngle() + relocOffset + autoAimOffset + AIM_TRIM_DEG;
+            angle = wrapToReachable(angle, motor.getCurrentAngle()); // short way across the rear seam
             smoothedTargetAngle = angle;
             motor.setTargetAngle(angle);
-        }
 
-        if (ballistics != null) {
-            ballistics.calculate(goalPose, tagX, tagY);
-            if (ballistics.isValid()) {
-                double angle = ballistics.getTurretAngleDeg() + autoAimOffset;
-                angle = Math.max(TurretMotor.MIN_ANGLE, Math.min(TurretMotor.MAX_ANGLE, angle));
-                motor.setTargetAngle(angle);
-                smoothedTargetAngle = motor.getTargetAngle();
+            // Physics lead (shoot-on-move).
+            if (ballistics != null) {
+                ballistics.calculate(goalPose, tagX, tagY);
+                if (ballistics.isValid()) {
+                    double a = ballistics.getTurretAngleDeg() + relocOffset + autoAimOffset + AIM_TRIM_DEG;
+                    a = wrapToReachable(a, motor.getCurrentAngle());
+                    motor.setTargetAngle(a);
+                    smoothedTargetAngle = motor.getTargetAngle();
+                }
             }
+        } else if (vision != null && vision.hasTargetTag()) {
+            // Vision-only test mode (no odometry): continuous tracking off ty with a lead cap.
+            smoothedTx += VISION_TX_EMA * (vision.getTargetPitch() - smoothedTx);
+            double lead = visionSign * smoothedTx;
+            lead = Math.max(-visionMaxLead, Math.min(visionMaxLead, lead));
+            // Parallax: the camera sits CAMERA_RIGHT_OFFSET_IN beside the flywheel, so centering
+            // the camera on the tag leaves the flywheel pointing off to the side. Shift the aim by
+            // atan(offset/distance) so the FLYWHEEL lands on target. Auto-scales with distance.
+            double dist = vision.getTargetDistance();
+            double parallax = (dist > 1.0)
+                    ? visionParallaxSign * Math.toDegrees(Math.atan2(Vision.CAMERA_RIGHT_OFFSET_IN, dist))
+                    : 0.0;
+            double target = motor.getCurrentAngle() + lead + parallax;
+            target = Math.max(TurretMotor.MIN_ANGLE, Math.min(TurretMotor.MAX_ANGLE, target));
+            motor.setTargetAngle(target);
+            smoothedTargetAngle = target;
+        } else if (vision != null) {
+            smoothedTx = 0.0;
         }
 
         double power = motor.calculatePIDF(motor.getTargetAngle(), motor.getCurrentAngle());
         motor.applyPower(power);
+    }
+
+    /**
+     * Camera relocalization: when the robot is settled and a tag is stably visible, compare the
+     * camera's measured angle to the tag against odometry's prediction. If they disagree by more
+     * than relocThresholdDeg, snap that residual into autoAimOffset to correct odometry drift/skips.
+     */
+    private void updateVisionRelocalization() {
+        updateMotionEstimate(); // keep the settled-state fresh every loop
+
+        if (vision == null || tagX == null || tagY == null) return;
+        if (!vision.hasTargetTag()) { smoothedTx = 0.0; didCorrect = false; return; }
+
+        smoothedTx += VISION_TX_EMA * (vision.getTargetPitch() - smoothedTx);
+
+        if (!isSettled()) { didCorrect = false; return; } // moving → camera bearing unreliable (latency)
+
+        // Convert the CAMERA's tag angle to the FLYWHEEL/turret-axis view by removing the
+        // camera-beside-flywheel parallax, so the correction puts the flywheel (not the camera)
+        // on the goal. Auto-scales with distance.
+        double rdist = vision.getTargetDistance();
+        double camParallax = (rdist > 1.0)
+                ? RELOC_PARALLAX_SIGN * Math.toDegrees(Math.atan2(Vision.CAMERA_RIGHT_OFFSET_IN, rdist))
+                : 0.0;
+        double camTagAngle = motor.getCurrentAngle() + visionSign * smoothedTx - camParallax; // measured tag angle
+        double odoTagAngle = fieldAngleTo(tagX, tagY);                                          // odometry's tag prediction
+        // residual = how far odometry (already corrected by relocOffset) is from the camera truth.
+        // NOTE: manual autoAimOffset is intentionally NOT included, so the driver's manual trim is
+        // preserved and never "corrected away" by the camera.
+        double residual = normalizeDeg(camTagAngle - (odoTagAngle + relocOffset));
+        lastResidual = residual;
+
+        if (!firstLockDone) {
+            // First settled lock: snap fully regardless of size. Localizes the turret even if the
+            // odometry start pose was unknown/wrong, so it can't get stuck off-target.
+            relocOffset += residual;
+            firstLockDone = true;
+            lastCorrectionTime = System.nanoTime();
+            didCorrect = true;
+            return;
+        }
+        if (Math.abs(residual) > RELOC_MAX_CORRECTION) { didCorrect = false; return; } // bad frame
+        // Cooldown: after a correction the turret moves but the camera reading lags, so a fresh
+        // residual is wrong until both settle. Wait before correcting again — this turns a tight
+        // oscillating loop into clean step-wise corrections (kills the shaking).
+        boolean cooled = (System.nanoTime() - lastCorrectionTime) / 1e9 >= RELOC_COOLDOWN_SEC;
+        if (Math.abs(residual) > relocThresholdDeg && cooled) {
+            relocOffset += residual; // snap the aim back onto truth; residual ≈ 0 next loop
+            lastCorrectionTime = System.nanoTime();
+            didCorrect = true;
+        } else {
+            didCorrect = false; // odometry good enough, or cooling down — don't chase camera lag
+        }
+    }
+
+    private void updateMotionEstimate() {
+        Pose p = getCurrentPose();
+        if (p == null) return;
+        long now = System.nanoTime();
+        if (Double.isNaN(prevHeadingRad)) {
+            prevHeadingRad = p.getHeading(); prevX = p.getX(); prevY = p.getY(); prevMotionTime = now;
+            return;
+        }
+        double dt = (now - prevMotionTime) / 1e9;
+        if (dt < 1e-3) return;
+        double instAng   = Math.abs(Math.toDegrees(normalizeRad(p.getHeading() - prevHeadingRad))) / dt;
+        double dx = p.getX() - prevX, dy = p.getY() - prevY;
+        double instTrans = Math.sqrt(dx * dx + dy * dy) / dt;
+        angVelDeg = 0.5 * angVelDeg + 0.5 * instAng;   // light smoothing
+        transVel  = 0.5 * transVel  + 0.5 * instTrans;
+        prevHeadingRad = p.getHeading(); prevX = p.getX(); prevY = p.getY(); prevMotionTime = now;
+
+        if (angVelDeg < settleAngVel && transVel < settleTransVel) {
+            settledFrames = Math.min(settledFrames + 1, SETTLE_FRAMES);
+        } else {
+            settledFrames = 0;
+        }
+    }
+
+    private boolean isSettled() { return settledFrames >= SETTLE_FRAMES; }
+
+    /** Raw odometry turret angle (encoder frame) that points at a field point. No clamp. */
+    private double fieldAngleTo(double fx, double fy) {
+        Pose p = getCurrentPose();
+        if (p == null) return 0.0;
+        double dx = fx - p.getX(), dy = fy - p.getY();
+        double h  = p.getHeading();
+        double rX =  dx * Math.cos(h) + dy * Math.sin(h);
+        double rY = -dx * Math.sin(h) + dy * Math.cos(h);
+        return -Math.toDegrees(Math.atan2(rY, rX));
+    }
+
+    private static double normalizeDeg(double a) {
+        while (a >  180) a -= 360;
+        while (a < -180) a += 360;
+        return a;
+    }
+
+    // Margin kept inside the hard ±MAX_ANGLE limit when choosing a wrapped target.
+    private static final double LIMIT_MARGIN_DEG = 5.0;
+
+    /**
+     * Pick the target representation (target, target±360) closest to the current turret angle and
+     * reachable within the limits MINUS a 5° margin. This uses the turret's past-180° overlap so
+     * that when the goal is directly behind (the ±180 seam), the turret nudges the SHORT way
+     * (e.g. to +185°) instead of swinging ~350° the long way.
+     */
+    private double wrapToReachable(double target, double current) {
+        double lo = TurretMotor.MIN_ANGLE + LIMIT_MARGIN_DEG;   // -185
+        double hi = TurretMotor.MAX_ANGLE - LIMIT_MARGIN_DEG;   // +185
+        double best = Double.NaN;
+        double bestDist = Double.MAX_VALUE;
+        for (double cand : new double[]{ target - 360, target, target + 360 }) {
+            if (cand < lo || cand > hi) continue;       // not reachable (with margin)
+            double d = Math.abs(cand - current);
+            if (d < bestDist) { bestDist = d; best = cand; }
+        }
+        // Fallback if nothing was in range: just clamp into the usable band.
+        return Double.isNaN(best) ? Math.max(lo, Math.min(hi, target)) : best;
+    }
+
+    private static double normalizeRad(double a) {
+        while (a >  Math.PI) a -= 2 * Math.PI;
+        while (a < -Math.PI) a += 2 * Math.PI;
+        return a;
     }
 
     /** Field coordinates → robot-frame turret angle via heading rotation. */
@@ -170,14 +425,17 @@ public class TurretAimer {
 
     // ── Misc ─────────────────────────────────────────────────────────────────
 
-    public boolean isTracking() {
-        return hasGoal();
-    }
+    public boolean isTracking()       { return hasGoal(); }
+    public boolean hasVisionTarget()  { return vision != null && vision.hasTargetTag(); }
+    public Vision  getVision()        { return vision; }
 
     public void onEncoderReset() {
         smoothedTargetAngle  = 0.0;
         savedCloseRangeAngle = Double.NaN;
         autoAimOffset        = 0.0;
+        relocOffset          = 0.0;
+        smoothedTx           = 0.0;
+        firstLockDone        = false; // re-acquire localization after a re-zero
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────

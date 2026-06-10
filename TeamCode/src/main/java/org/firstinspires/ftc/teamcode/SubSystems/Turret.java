@@ -32,13 +32,34 @@ public class Turret {
     }
 
     /**
-     * TeleOp: odometry via Pedro Follower.
+     * TeleOp: odometry via Pedro Follower + Limelight vision.
+     * Vision overrides odometry when tag is visible.
+     * Does NOT reset encoder — preserves turret position from Auto.
+     */
+    public Turret(HardwareMap hardwareMap, Follower follower, Vision vision) {
+        motor      = new TurretMotor(hardwareMap, false);
+        ballistics = new TurretBallistics(follower);
+        aimer      = new TurretAimer(motor, ballistics, follower, vision);
+    }
+
+    /**
+     * TeleOp: odometry via Pedro Follower, no vision.
      * Does NOT reset encoder — preserves turret position from Auto.
      */
     public Turret(HardwareMap hardwareMap, Follower follower) {
         motor      = new TurretMotor(hardwareMap, false);
         ballistics = new TurretBallistics(follower);
         aimer      = new TurretAimer(motor, ballistics, follower);
+    }
+
+    /**
+     * Vision-only aim test: turret tracks the tag via Limelight tx + parallax.
+     * No odometry, no physics, no flywheel. Resets encoder at construction.
+     */
+    public Turret(HardwareMap hardwareMap, Vision vision) {
+        motor      = new TurretMotor(hardwareMap, true);
+        ballistics = null;
+        aimer      = new TurretAimer(motor, vision);
     }
 
     /** Basic motor test: no odometry, no physics. */
@@ -79,6 +100,24 @@ public class Turret {
     /** Full auto-aim loop: odometry → physics lead. Drives motor. Call every loop(). */
     public void autoAim()                      { aimer.autoAim(); }
     public void setAutoAimOffset(double offset){ aimer.setAutoAimOffset(offset); }
+    /** (vision-only test mode) set aim direction, chase lead cap, and parallax sign (+1/-1/0). */
+    public void setVisionTuning(double sign, double maxLead, double parallaxSign) {
+        aimer.setVisionTuning(sign, maxLead, parallaxSign);
+    }
+
+    /** Configure camera relocalization: sign (+1/-1), threshold (deg), settle limits (deg/s, in/s). */
+    public void setRelocalization(double sign, double thresholdDeg, double settleAngVel, double settleTransVel) {
+        aimer.setRelocalization(sign, thresholdDeg, settleAngVel, settleTransVel);
+    }
+    /** Clear the camera drift correction (on a manual position reset). */
+    public void clearRelocalization() { aimer.clearRelocalization(); }
+    public double  getAutoAimOffset()  { return aimer.getAutoAimOffset(); }
+    public double  getRelocOffset()    { return aimer.getRelocOffset(); }
+    public double  getRelocResidual()  { return aimer.getRelocResidual(); }
+    public boolean isSettledForReloc() { return aimer.isSettledForReloc(); }
+    public double  getAngularVel()     { return aimer.getAngularVelDeg(); }
+    public double  getTranslationVel() { return aimer.getTranslationVel(); }
+    public boolean didReloc()          { return aimer.didReloc(); }
     public double getCalculatedTargetAngle()   { return aimer.getCalculatedTargetAngle(); }
 
     /** Hold current targetAngle with PIDF (no aim recalculation). */
@@ -108,7 +147,9 @@ public class Turret {
 
     // ── Tracking ─────────────────────────────────────────────────────────────
 
-    public boolean isTracking() { return aimer.isTracking(); }
+    public boolean isTracking()      { return aimer.isTracking(); }
+    public boolean hasVisionTarget() { return aimer.hasVisionTarget(); }
+    public Vision  getVision()       { return aimer.getVision(); }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
 

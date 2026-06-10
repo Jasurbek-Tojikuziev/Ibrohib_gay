@@ -21,6 +21,7 @@ public class Robot {
     private List<LynxModule> allHubs;
 
     public Follower follower;
+    public Vision vision;
     public Intake intake;
     public Shooter shooter;
     public Turret turret;
@@ -60,9 +61,11 @@ public class Robot {
 
         Localizer.getInstance(hardwareMap);
 
+        vision = new Vision(hardwareMap, isRedAlliance);
+
         intake = new Intake(hardwareMap);
         shooter = new Shooter(hardwareMap);
-        turret = new Turret(hardwareMap, follower);
+        turret = new Turret(hardwareMap, follower, vision);
         Pose goal = FieldConstants.getGoal(isRedAlliance);
         Pose tag = FieldConstants.getTag(isRedAlliance);
         turret.setGoalPose(goal);
@@ -71,7 +74,7 @@ public class Robot {
         intakeController = new IntakeController(null, intake);
         shooterController = new ShooterController(null, shooter);
         turretController = new TurretController(null, turret);
-        resetController = new ResetController(intakeController, shooterController, turretController, intake, shooter, turret);
+        resetController = new ResetController(intakeController, shooterController, turretController, intake, shooter, turret, follower);
 
         if (mode == TeleOpMode.EMERGENCY) {
             turretController.disableAutoAim();
@@ -132,22 +135,31 @@ public class Robot {
         }
 
         follower.update();
+        vision.update();
 
-        double slowModeFactor = gamepad1.right_trigger > 0.1 ? 0.3 : 1.0;
-        follower.setTeleOpDrive(
-                -gamepad1.left_stick_y  * slowModeFactor,
-                -gamepad1.left_stick_x  * slowModeFactor,
-                -gamepad1.right_stick_x * slowModeFactor,
-                true
-        );
+        // Activate everything the moment driver touches any drive stick on gamepad1.
+        // Before this: robot holds position silently (no driving, no turret, no shooter).
+        // This ensures the robot starts from the exact auto end-position.
+        if (!driverReady) {
+            boolean driveInput = Math.abs(gamepad1.left_stick_x)  > 0.1
+                              || Math.abs(gamepad1.left_stick_y)  > 0.1
+                              || Math.abs(gamepad1.right_stick_x) > 0.1;
+            if (driveInput) activateDriver();
+        }
 
-        // Drive always runs. Turret/shooter wait until activateDriver() is called.
         if (!driverReady) {
             if (loopCount % 10 == 0) {
                 telemetry.addData("Loop", String.format("%.1fms (%.0f Hz)", avgLoopMs, avgLoopMs > 0 ? 1000.0 / avgLoopMs : 0));
             }
             return;
         }
+
+        follower.setTeleOpDrive(
+                -gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
+                -gamepad1.right_stick_x / 1.25,
+                true
+        );
 
         // Distance to TAG — for velocity/hood (formulas calibrated from tag, not goal)
         double tagX = FieldConstants.getTag(isRedAlliance).getX();
@@ -167,8 +179,13 @@ public class Robot {
         }
         prevHeading = currentHeading;
 
+        double visionDistance = vision.hasTargetTag() ? vision.getTargetDistance() : 0;
+
         double distanceToGoal;
-        if (odometryDistance > 0) {
+        if (visionDistance > 0) {
+            distanceToGoal = visionDistance;
+            distanceSource = "Vision";
+        } else if (odometryDistance > 0) {
             distanceToGoal = odometryDistance;
             distanceSource = "Odometry";
         } else {
@@ -218,6 +235,10 @@ public class Robot {
             telemetry.addData("Loop", String.format("%.1fms (%.0f Hz)", avgLoopMs, avgLoopMs > 0 ? 1000.0 / avgLoopMs : 0));
             telemetry.addData("Spinning", isSpinning ? "YES (dist frozen)" : "no");
             telemetry.addData("Effective dist", String.format("%.1f\"", effectiveDist));
+            telemetry.addData("Dist source", distanceSource);
+            telemetry.addData("Vision", turret.hasVisionTarget()
+                    ? String.format("LOCK  tx=%.1f°  dist=%.1f\"", vision.getTargetYaw(), visionDistance)
+                    : (vision.isConnected() ? "searching..." : "DISCONNECTED"));
             if (turret.hasPhysicsShot()) {
                 telemetry.addData("Physics", "ACTIVE");
                 telemetry.addData("Turret correction", String.format("%.1f°",
@@ -243,7 +264,7 @@ public class Robot {
             shooter.resetDeadzones();
         }
 
-        intakeController.gamepad = gamepad2;
+        intakeController.gamepad = gamepad1;
         intakeController.gamepad1 = gamepad1;
         if (!shooterController.isShooting()) {
             intakeController.update();
@@ -268,5 +289,6 @@ public class Robot {
         intake.off();
         shooter.off();
         turret.stop();
+        vision.stop();
     }
 }

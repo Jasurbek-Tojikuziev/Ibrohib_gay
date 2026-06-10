@@ -20,33 +20,34 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 public class Constants {
 
     // ── Translational PIDF ────────────────────────────────────────────────────
-    public static double transP = 0.2,   transI = 0, transD = 0.0042,  transF = 0.08;
-    public static double trans2P = 0.1,  trans2I = 0, trans2D = 0.00042, trans2F = 0.008;
+    public static double transP = 0.095,  transI = 0, transD = 0.0095,  transF = 0.0076;
+    public static double trans2P = 0.19,  trans2I = 0, trans2D = 0.0209, trans2F = 0;
+    public static double translationalPIDFSwitch = 6;
 
     // ── Heading PIDF ──────────────────────────────────────────────────────────
-    public static double headP = 1.2,   headI = 0, headD = 0.001,   headF = 0.04;
-    public static double head2P = 0.2,  head2I = 0, head2D = 0.0003, head2F = 0.02;
+    public static double headP = 1.615,  headI = 0, headD = 0.1425,  headF = 0.019;
+    public static double head2P = 2.1,   head2I = 0, head2D = 0.095,  head2F = 0;
 
     // ── Drive PIDF ────────────────────────────────────────────────────────────
-    public static double driveP = 0.5,   driveI = 0, driveD = 0.003,   driveF = 0.1,  driveFilter = 0.1;
-    public static double drive2P = 0.007, drive2I = 0, drive2D = 0.0004, drive2F = 0.2, drive2Filter = 0.1;
+    public static double driveP = 0.03325,  driveI = 0, driveD = 0.000002,   driveF = 0.6,  driveFilter = 0.19;
+    public static double drive2P = 0.04275, drive2I = 0, drive2D = 0.00000665, drive2F = 0.6, drive2Filter = 0.0;
 
     // ── Predictive Braking ────────────────────────────────────────────────────
-    public static double predictiveKP        = 0.1;
-    public static double predictiveKLinear   = 0.070291;
-    public static double predictiveKQuadratic = 0.003206;
+    public static double predictiveKP         = 0.15;
+    public static double predictiveKLinear    = 0.07519223906924728;
+    public static double predictiveKQuadratic = 0.0019185831783996089;
 
     // ── Centripetal & Robot ───────────────────────────────────────────────────
     public static double centripetalScaling = 0;  // disabled — predictive braking accounts for this
-    public static double mass = 12;
+    public static double mass = 11.0;
 
     // ── Zero Power Accelerations ──────────────────────────────────────────────
-    public static double forwardZeroPowerAccel = -35.70;
-    public static double lateralZeroPowerAccel = -59.66;
+    public static double forwardZeroPowerAccel = -34.41482226756982;
+    public static double lateralZeroPowerAccel = -59.02340458740202;
 
     // ── Drive Velocity ────────────────────────────────────────────────────────
-    public static double xVelocity = 78.28;
-    public static double yVelocity = 56.19;
+    public static double xVelocity = 86.636;
+    public static double yVelocity = 66.908;
 
     // ── Localizer ─────────────────────────────────────────────────────────────
     public static PinpointConstants localizerConstants = new PinpointConstants()
@@ -56,11 +57,11 @@ public class Constants {
             .hardwareMapName("pinpoint")
             .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD)
             .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
-            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
+            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED);
 
-    public static double brakingStrength = 0.8;
-    public static double brakingStart = 0.8;
-    public static PathConstraints pathConstraints = new PathConstraints(0.97, 100, brakingStrength, brakingStart);
+    public static double brakingStrength = 2;
+    public static double brakingStart = 0.1;
+    public static PathConstraints pathConstraints = new PathConstraints(0.96, 100, brakingStrength, brakingStart);
 
     public static Follower createFollower(HardwareMap hardwareMap) {
         FollowerConstants followerConstants = new FollowerConstants()
@@ -68,6 +69,7 @@ public class Constants {
                 .lateralZeroPowerAcceleration(lateralZeroPowerAccel)
                 .translationalPIDFCoefficients(new PIDFCoefficients(transP, transI, transD, transF))
                 .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(trans2P, trans2I, trans2D, trans2F))
+                .translationalPIDFSwitch(translationalPIDFSwitch)
                 .headingPIDFCoefficients(new PIDFCoefficients(headP, headI, headD, headF))
                 .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(head2P, head2I, head2D, head2F))
                 .drivePIDFCoefficients(new FilteredPIDFCoefficients(driveP, driveI, driveD, driveF, driveFilter))
@@ -87,7 +89,9 @@ public class Constants {
                 .rightFrontMotorDirection(DcMotorSimple.Direction.FORWARD)
                 .rightRearMotorDirection(DcMotorSimple.Direction.FORWARD)
                 .xVelocity(xVelocity)
-                .yVelocity(yVelocity);
+                .yVelocity(yVelocity)
+                .useVoltageCompensation(true)
+                .useBrakeModeInTeleOp(true);
 
         return new FollowerBuilder(followerConstants, hardwareMap)
                 .pathConstraints(pathConstraints)

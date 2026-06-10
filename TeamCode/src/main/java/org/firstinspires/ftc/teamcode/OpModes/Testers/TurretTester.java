@@ -13,10 +13,10 @@ import org.firstinspires.ftc.teamcode.SubSystems.Turret;
 public class TurretTester extends LinearOpMode {
 
     // PIDF коэффициенты (настраиваются через Dashboard)
-    public static double KP = 0.01;
+    public static double KP = 0.02;
     public static double KI = 0.0;
-    public static double KD = 0.00033;
-    public static double KF = 0.043;
+    public static double KD = 0.001;
+    public static double KF = 0.032;
 
     // Preset positions для тестирования (в градусах)
     public static double CENTER_POSITION = 0.0;

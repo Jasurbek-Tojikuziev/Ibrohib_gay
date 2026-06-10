@@ -124,22 +124,63 @@ public abstract class AutoBase extends OpMode {
         telemetry.addData("Target velocity", "%.0f ticks/s", shooter.getTargetVelocity());
         telemetry.addData("Current velocity", "%.0f ticks/s", shooter.getCurrentVelocity());
         telemetry.addData("Hood position", "%.3f", shooter.getHoodServoPosition());
+
+        // ── Turret diagnostics ────────────────────────────────────────────────
+        telemetry.addData("Turret target°", "%.2f", turret.getTargetAngle());
+        telemetry.addData("Turret current°", "%.2f", turret.getCurrentAngle());
+        telemetry.addData("Turret odom°", "%.2f", turret.getCalculatedTargetAngle());
+        telemetry.addData("Turret physics?", turret.hasPhysicsShot());
+        // ─────────────────────────────────────────────────────────────────────
+
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        if (follower != null) {
-            Pose finalPose = follower.getPose();
-            localizer.setPosition(
-                finalPose.getX(),
-                finalPose.getY(),
-                Math.toDegrees(finalPose.getHeading())
-            );
-            follower.breakFollowing();
-        }
-        if (intake != null) intake.off();
+        // Stop subsystems immediately
+        if (intake  != null) intake.off();
         if (shooter != null) shooter.off();
-        if (turret != null) turret.stop();
+        if (turret  != null) turret.stop();
+
+        if (follower != null) {
+            follower.breakFollowing();
+
+            // Save position immediately as fallback
+            final Pose snap = follower.getPose();
+            if (localizer != null) {
+                localizer.setPosition(
+                    snap.getX(),
+                    snap.getY(),
+                    Math.toDegrees(snap.getHeading())
+                );
+            }
+
+            // 3-second settle thread: robot may still be coasting when auto ends.
+            // After 3 s, update Localizer with the true resting position.
+            // TeleOp reads this singleton at init, so it starts from where the robot actually stopped.
+            final Follower  f   = follower;
+            final Localizer loc = localizer;
+
+            Thread settleThread = new Thread(() -> {
+                try {
+                    Thread.sleep(3000);
+                    f.update();
+                    Pose settled = f.getPose();
+                    // Sanity check: if Pinpoint was reset by TeleOp starting early,
+                    // the position would jump > 50". In that case keep the snap position.
+                    double jump = Math.hypot(settled.getX() - snap.getX(),
+                                            settled.getY() - snap.getY());
+                    if (jump < 50.0) {
+                        loc.setPosition(
+                            settled.getX(),
+                            settled.getY(),
+                            Math.toDegrees(settled.getHeading())
+                        );
+                    }
+                } catch (Exception ignored) {}
+            }, "pose-settle");
+            settleThread.setDaemon(true);
+            settleThread.start();
+        }
     }
 }

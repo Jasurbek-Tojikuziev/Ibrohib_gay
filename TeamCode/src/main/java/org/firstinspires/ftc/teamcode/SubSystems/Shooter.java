@@ -8,7 +8,9 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -49,10 +51,10 @@ public class Shooter {
     public static double FEED_TIME = 1.0;
 
     // SDK PIDF coefficients (RUN_USING_ENCODER, firmware-level ~1kHz)
-    public static double PIDF_P        = 100.0;
+    public static double PIDF_P        = 190.0;
     public static double PIDF_I        = 0.0;
     public static double PIDF_D        = 0.0;
-    public static double PIDF_F        = 14;
+    public static double PIDF_F        = 13.0;
     public static double TARGET_VELOCITY = 1300.0; // ticks/sec, fallback when no distance
 
     // Active braking: when current velocity exceeds target by DECEL_THRESHOLD,
@@ -62,12 +64,12 @@ public class Shooter {
     public static double DECEL_BOOST     = 300.0; // ticks/sec below target to command during braking
 
     // Flywheel velocity formula coefficients (4th order polynomial)
-    // y = 0.00000458277x^4 - 0.00167105x^3 + 0.2038x^2 - 3.99024x + 998.91569
-    public static double VELOCITY_A =  0.00000458277;
-    public static double VELOCITY_B = -0.00167105;
-    public static double VELOCITY_C =  0.2038;
-    public static double VELOCITY_D = -3.99024;
-    public static double VELOCITY_E =  998.91569;
+    // y = 0.0000108902x^4 - 0.00340796x^3 + 0.357289x^2 - 9.00105x + 1017.27504
+    public static double VELOCITY_A =  0.0000108902;
+    public static double VELOCITY_B = -0.00340796;
+    public static double VELOCITY_C =  0.357289;
+    public static double VELOCITY_D = -9.00105;
+    public static double VELOCITY_E =  1017.27504;
 
     public static double VELOCITY_READY_THRESHOLD = 0.93; // 93% of target = "at speed"
 
@@ -76,11 +78,13 @@ public class Shooter {
     private static final double MAX_VELOCITY = 1700.0;
     public static double FLYWHEEL_OFFSET = 0.0;           // Offset для калибровки (tunable)
 
-    // Hood angle formula (logistic)
-    // y = 1.02214 / (1 + e^(-(0.102477x - 5.0052)))
-    public static double HOOD_L  = 1.02214;
-    public static double HOOD_K  = 0.102477;
-    public static double HOOD_X0 = 5.0052;
+    // Hood angle formula (4th order polynomial)
+    // y = (7.08406e-8)x^4 - 0.0000213699x^3 + 0.00206296x^2 - 0.0579972x + 0.470963  R²=0.9973
+    public static double HOOD_A =  0.0000000708406;
+    public static double HOOD_B = -0.0000213699;
+    public static double HOOD_C =  0.00206296;
+    public static double HOOD_D = -0.0579972;
+    public static double HOOD_E =  0.470963;
 
     // Hood angle limits
     private static final double MIN_HOOD_ANGLE = 0.0;
@@ -123,6 +127,8 @@ public class Shooter {
         shooterMotor1 = hardwareMap.get(DcMotorEx.class, "shooterMotor1");
         shooterMotor2 = hardwareMap.get(DcMotorEx.class, "shooterMotor2");
         hood = hardwareMap.get(Servo.class, "shooterHood");
+        hood.setDirection(Servo.Direction.FORWARD);
+        ((ServoImplEx) hood).setPwmRange(new PwmControl.PwmRange(500, 2500));
         shooterStop = hardwareMap.get(Servo.class, "shooterStop");
         intakeStop = hardwareMap.get(Servo.class, "intakeStop");
 
@@ -184,7 +190,11 @@ public class Shooter {
      * @return Hood servo position (0.0 - 1.0)
      */
     private double calculateHoodAngle(double distanceInches) {
-        double angle = HOOD_L / (1.0 + Math.exp(-(HOOD_K * distanceInches - HOOD_X0)));
+        double d2 = distanceInches * distanceInches;
+        double d3 = d2 * distanceInches;
+        double d4 = d3 * distanceInches;
+        double angle = HOOD_A * d4 + HOOD_B * d3 + HOOD_C * d2 + HOOD_D * distanceInches + HOOD_E;
+        // Reversed (no 1.0- inversion): close distance → low hood, far distance → high hood.
         return clamp(angle, MIN_HOOD_ANGLE, MAX_HOOD_ANGLE) + HOOD_OFFSET;
     }
 
@@ -325,7 +335,7 @@ public class Shooter {
                 break;
 
             case FEED:
-                // Continuous feed — all 3 balls exit in one uninterrupted intake run
+                // Continuous feed — all 3 balls exit in one uninterrupted intake run.
                 if (!feedStarted) {
                     intake.on();
                     feedStarted = true;

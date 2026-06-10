@@ -25,8 +25,6 @@ public class RedAllianceTeleOp extends LinearOpMode {
     private ElapsedTime resetDebounceTimer = new ElapsedTime();
     private static final double RESET_DEBOUNCE_SEC = 0.5;
 
-    // Cross-alliance start (GP2 dpad_left) — usable only once per match
-    private boolean crossAllianceUsed = false;
 
     @Override
     public void runOpMode() {
@@ -91,7 +89,7 @@ public class RedAllianceTeleOp extends LinearOpMode {
             telemetry.addLine("Using NO AUTO start position");
         } else {
             // No Auto ran - use default Red start (same as dpad_down reset)
-            startPose = new Pose(130, 76, Math.toRadians(0));
+            startPose = new Pose(128.9090909090909, 80.36363636363635, Math.toRadians(0));
             telemetry.addLine("Using default Red start position");
         }
 
@@ -114,49 +112,35 @@ public class RedAllianceTeleOp extends LinearOpMode {
         robot.start();
 
         while (opModeIsActive()) {
-            // gamepad1 drives immediately. Turret/shooter activate only after GP2 dpad_up or dpad_down.
 
-            // Cross-alliance start: GP2 dpad_left — sets Blue's dpad_up pose, usable only once
-            if (gamepad2.dpad_left && !crossAllianceUsed && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
-                crossAllianceUsed = true;
-                if (!robot.isDriverReady()) robot.activateDriver();
-                Pose crossPose = new Pose(135.8758815232722, 8.124118476727789, Math.toRadians(180));
-                robot.follower.setPose(crossPose);
-                org.firstinspires.ftc.teamcode.SubSystems.Localizer.getInstance().setPosition(
-                    crossPose.getX(), crossPose.getY(), Math.toDegrees(crossPose.getHeading()));
-                robot.turretController.enableAutoAim();
-                robot.turret.setGoalPose(redGoalPose);
-                robot.turret.autoAim();
-                resetDebounceTimer.reset();
-            }
-
-            // Position reset + activation on dpad (gamepad2)
+            // Position reset + activation on dpad (gamepad1)
             boolean didReset = false;
-            if (gamepad2.dpad_up && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
+            if (gamepad1.dpad_up && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
                 if (!robot.isDriverReady()) robot.activateDriver();
                 // Reset to Red alliance preset position (far side)
                 Pose resetPose = new Pose(11.598, 10.885, Math.toRadians(0));
                 robot.follower.setPose(resetPose);
-
                 org.firstinspires.ftc.teamcode.SubSystems.Localizer.getInstance().setPosition(
                     resetPose.getX(),
                     resetPose.getY(),
                     Math.toDegrees(resetPose.getHeading())
                 );
-
+                robot.turret.setAutoAimOffset(0.0);  // clear manual offset — position is now known
+                robot.turret.clearRelocalization();  // position reset → drop stale camera correction
                 robot.turretController.enableAutoAim();
                 robot.turret.autoAim();
-
                 didReset = true;
                 resetDebounceTimer.reset();
             }
 
-            if (gamepad2.dpad_down && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
+            if (gamepad1.dpad_down && resetDebounceTimer.seconds() >= RESET_DEBOUNCE_SEC) {
                 if (!robot.isDriverReady()) robot.activateDriver();
-                Pose resetPose = new Pose(130, 76, Math.toRadians(0));
+                Pose resetPose = new Pose(128.9090909090909, 80.36363636363635, Math.toRadians(0));
                 robot.follower.setPose(resetPose);
                 org.firstinspires.ftc.teamcode.SubSystems.Localizer.getInstance().setPosition(
                     resetPose.getX(), resetPose.getY(), Math.toDegrees(resetPose.getHeading()));
+                robot.turret.resetEncoder();
+                robot.turret.setAutoAimOffset(0.0);
                 robot.turretController.enableAutoAim();
                 robot.turret.autoAim();
                 didReset = true;
@@ -182,7 +166,7 @@ public class RedAllianceTeleOp extends LinearOpMode {
 
     private void displayTelemetry() {
         if (!robot.isDriverReady()) {
-            telemetry.addLine(">>> GP2 DPAD UP or DOWN to activate turret/shooter <<<");
+            telemetry.addLine(">>> Touch GP1 left stick to activate from auto position <<<");
             telemetry.addLine();
         }
 

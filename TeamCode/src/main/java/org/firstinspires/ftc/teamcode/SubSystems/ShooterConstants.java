@@ -68,7 +68,7 @@ public class ShooterConstants {
     public static double HOOD_SERVO_SCALE  = 0.04348;  // servo units / degree (0→32°, 1→55°)
     public static double HOOD_SERVO_OFFSET = -1.3913;  // servo units (0→32°, 1→55°)
     public static double HOOD_SERVO_MIN    = 0.0;      // Min servo position
-    public static double HOOD_SERVO_MAX    = 0.69;     // Max servo position
+    public static double HOOD_SERVO_MAX    = 0.9;     // Max servo position
 
     // ---- Flywheel conversion ----
     /**

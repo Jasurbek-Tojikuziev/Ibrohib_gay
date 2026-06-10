@@ -17,10 +17,10 @@ import org.firstinspires.ftc.teamcode.SubSystems.Intake;
 public class ShooterPIDTuner extends LinearOpMode {
 
     // SDK PIDF коэффициенты (firmware-level ~1kHz, настраиваются через Dashboard)
-    public static double PIDF_P        = 100.0;
+    public static double PIDF_P        = 190.0;
     public static double PIDF_I        = 0.0;
     public static double PIDF_D        = 0.0;
-    public static double PIDF_F        = 14;
+    public static double PIDF_F        = 13.0;
     public static double TARGET_VELOCITY = 1500.0; // ticks/sec
 
     // Моторы

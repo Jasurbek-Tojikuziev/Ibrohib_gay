@@ -1,8 +1,11 @@
 package org.firstinspires.ftc.teamcode.Controllers;
 
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import org.firstinspires.ftc.teamcode.SubSystems.Intake;
+import org.firstinspires.ftc.teamcode.SubSystems.Localizer;
 import org.firstinspires.ftc.teamcode.SubSystems.Shooter;
 import org.firstinspires.ftc.teamcode.SubSystems.Turret;
 
@@ -11,26 +14,30 @@ public class ResetController {
     private ShooterController shooterController;
     private TurretController turretController;
 
-    private Intake intake;
-    private Shooter shooter;
-    private Turret turret;
+    private Intake   intake;
+    private Shooter  shooter;
+    private Turret   turret;
+    private Follower follower;  // needed to snapshot current pose into Localizer on reset
 
     private boolean wasResetPressed = false;
-    private boolean resetInProgress = false;
 
     public ResetController(IntakeController intakeController,
                            ShooterController shooterController,
                            TurretController turretController,
                            Intake intake,
                            Shooter shooter,
-                           Turret turret) {
-        this.intakeController = intakeController;
+                           Turret turret,
+                           Follower follower) {
+        this.intakeController  = intakeController;
         this.shooterController = shooterController;
-        this.turretController = turretController;
-        this.intake = intake;
-        this.shooter = shooter;
-        this.turret = turret;
+        this.turretController  = turretController;
+        this.intake   = intake;
+        this.shooter  = shooter;
+        this.turret   = turret;
+        this.follower = follower;
     }
+
+    private boolean resetInProgress = false;
 
     public void handleResetButton(Gamepad gamepad2) {
         // Снимаем флаг как только турель вернулась в центр
@@ -64,6 +71,16 @@ public class ResetController {
         }
 
         turret.returnToCenter(); // Return turret to 0° with PID
+
+        // Forget auto values: overwrite Localizer with current physical position.
+        // If TeleOp is restarted now, it starts from the reset position, not auto.
+        if (follower != null) {
+            Pose cur = follower.getPose();
+            Localizer loc = Localizer.getInstance();
+            if (loc != null) {
+                loc.setPosition(cur.getX(), cur.getY(), Math.toDegrees(cur.getHeading()));
+            }
+        }
 
         wasResetPressed = false;
     }

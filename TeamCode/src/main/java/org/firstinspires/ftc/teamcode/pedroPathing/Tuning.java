@@ -795,11 +795,6 @@ class LateralZeroPowerAccelerationTuner extends OpMode {
  * @version 1.0, 3/12/2024
  */
 class TranslationalTuner extends OpMode {
-    public static double DISTANCE = 40;
-    private boolean forward = true;
-
-    private Path forwards;
-    private Path backwards;
 
     @Override
     public void init() {
@@ -807,12 +802,10 @@ class TranslationalTuner extends OpMode {
         follower.setStartingPose(new Pose(72, 72));
     }
 
-    /** This initializes the Follower and creates the forward and backward Paths. */
     @Override
     public void init_loop() {
-        telemetryM.debug("This will activate the translational PIDF(s)");
-        telemetryM.debug("The robot will try to stay in place while you push it laterally.");
-        telemetryM.debug("You can adjust the PIDF values to tune the robot's translational PIDF(s).");
+        telemetryM.debug("This will activate the translational PIDF(s).");
+        telemetryM.debug("Push the robot in any direction and observe correction.");
         telemetryM.update(telemetry);
         follower.update();
         drawOnlyCurrent();
@@ -822,34 +815,15 @@ class TranslationalTuner extends OpMode {
     public void start() {
         follower.deactivateAllPIDFs();
         follower.activateTranslational();
-        forwards = new Path(new BezierLine(new Pose(72,72), new Pose(DISTANCE + 72,72)));
-        forwards.setConstantHeadingInterpolation(0);
-        backwards = new Path(new BezierLine(new Pose(DISTANCE + 72,72), new Pose(72,72)));
-        backwards.setConstantHeadingInterpolation(0);
-        follower.followPath(forwards);
+        follower.holdPoint(new Pose(72, 72, 0));
     }
 
-    /** This runs the OpMode, updating the Follower as well as printing out the debug statements to the Telemetry */
     @Override
     public void loop() {
         follower.update();
         draw();
 
-        if (!follower.isBusy()) {
-            if (forward) {
-                forward = false;
-                follower.followPath(backwards);
-            } else {
-                forward = true;
-                follower.followPath(forwards);
-            }
-        }
-
-        follower.setTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.transP, Constants.transI, Constants.transD, Constants.transF));
-        follower.setSecondaryTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.trans2P, Constants.trans2I, Constants.trans2D, Constants.trans2F));
-
-        telemetryM.debug("Push the robot laterally to test the Translational PIDF(s).");
-        telemetryM.addData("Zero Line", 0);
+        telemetryM.debug("Push the robot to test the Translational PIDF(s).");
         telemetryM.addData("Error X", follower.errorCalculator.getTranslationalError().getXComponent());
         telemetryM.addData("Error Y", follower.errorCalculator.getTranslationalError().getYComponent());
         telemetryM.update(telemetry);
@@ -868,11 +842,6 @@ class TranslationalTuner extends OpMode {
  * @version 1.0, 3/12/2024
  */
 class HeadingTuner extends OpMode {
-    public static double DISTANCE = 40;
-    private boolean forward = true;
-
-    private Path forwards;
-    private Path backwards;
 
     @Override
     public void init() {
@@ -880,15 +849,10 @@ class HeadingTuner extends OpMode {
         follower.setStartingPose(new Pose(72, 72));
     }
 
-    /**
-     * This initializes the Follower and creates the forward and backward Paths. Additionally, this
-     * initializes the Panels telemetry.
-     */
     @Override
     public void init_loop() {
         telemetryM.debug("This will activate the heading PIDF(s).");
-        telemetryM.debug("The robot will try to stay at a constant heading while you try to turn it.");
-        telemetryM.debug("You can adjust the PIDF values to tune the robot's heading PIDF(s).");
+        telemetryM.debug("Rotate the robot and observe correction.");
         telemetryM.update(telemetry);
         follower.update();
         drawOnlyCurrent();
@@ -898,37 +862,15 @@ class HeadingTuner extends OpMode {
     public void start() {
         follower.deactivateAllPIDFs();
         follower.activateHeading();
-        forwards = new Path(new BezierLine(new Pose(72,72), new Pose(DISTANCE + 72,72)));
-        forwards.setConstantHeadingInterpolation(0);
-        backwards = new Path(new BezierLine(new Pose(DISTANCE + 72,72), new Pose(72,72)));
-        backwards.setConstantHeadingInterpolation(0);
-        follower.followPath(forwards);
+        follower.holdPoint(new Pose(72, 72, 0));
     }
 
-    /**
-     * This runs the OpMode, updating the Follower as well as printing out the debug statements to
-     * the Telemetry, as well as the Panels.
-     */
     @Override
     public void loop() {
         follower.update();
         draw();
 
-        if (!follower.isBusy()) {
-            if (forward) {
-                forward = false;
-                follower.followPath(backwards);
-            } else {
-                forward = true;
-                follower.followPath(forwards);
-            }
-        }
-
-        follower.setHeadingPIDFCoefficients(new PIDFCoefficients(Constants.headP, Constants.headI, Constants.headD, Constants.headF));
-        follower.setSecondaryHeadingPIDFCoefficients(new PIDFCoefficients(Constants.head2P, Constants.head2I, Constants.head2D, Constants.head2F));
-
-        telemetryM.debug("Turn the robot manually to test the Heading PIDF(s).");
-        telemetryM.addData("Zero Line", 0);
+        telemetryM.debug("Rotate the robot to test the Heading PIDF(s).");
         telemetryM.addData("Error", follower.errorCalculator.getHeadingError());
         telemetryM.update(telemetry);
     }
@@ -1010,11 +952,6 @@ class DriveTuner extends OpMode {
             }
         }
 
-        follower.setDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.driveP, Constants.driveI, Constants.driveD, Constants.driveFilter, Constants.driveF));
-        follower.setSecondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.drive2P, Constants.drive2I, Constants.drive2D, Constants.drive2F, Constants.drive2Filter));
-        follower.setConstraints(new PathConstraints(0.97, 100, Constants.brakingStrength, Constants.brakingStart));
-        Tuning.updatePredictiveBraking();
-
         telemetryM.debug("Driving forward?: " + forward);
         telemetryM.addData("Zero Line", 0);
         telemetryM.addData("Error", follower.errorCalculator.getDriveErrors()[1]);
@@ -1082,15 +1019,6 @@ class Line extends OpMode {
                 follower.followPath(forwards);
             }
         }
-
-        follower.setDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.driveP, Constants.driveI, Constants.driveD, Constants.driveFilter, Constants.driveF));
-        follower.setSecondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(Constants.drive2P, Constants.drive2I, Constants.drive2D, Constants.drive2F, Constants.drive2Filter));
-        follower.setHeadingPIDFCoefficients(new PIDFCoefficients(Constants.headP, Constants.headI, Constants.headD, Constants.headF));
-        follower.setSecondaryHeadingPIDFCoefficients(new PIDFCoefficients(Constants.head2P, Constants.head2I, Constants.head2D, Constants.head2F));
-        follower.setTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.transP, Constants.transI, Constants.transD, Constants.transF));
-        follower.setSecondaryTranslationalPIDFCoefficients(new PIDFCoefficients(Constants.trans2P, Constants.trans2I, Constants.trans2D, Constants.trans2F));
-        follower.setConstraints(new PathConstraints(0.97, 100, Constants.brakingStrength, Constants.brakingStart));
-        Tuning.updatePredictiveBraking();
 
         telemetryM.debug("Driving Forward?: " + forward);
         telemetryM.debug("driveP=" + Constants.driveP + " driveF=" + Constants.driveF + " braking=" + Constants.brakingStrength);

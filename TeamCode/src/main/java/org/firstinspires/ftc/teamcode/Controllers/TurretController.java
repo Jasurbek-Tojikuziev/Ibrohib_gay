@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.Controllers;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.SubSystems.Turret;
 
@@ -11,13 +12,13 @@ public class TurretController {
 
     public boolean autoAimEnabled = true;
 
-    private static final double MANUAL_SENSITIVITY = 0.35;
-    private static final double JOYSTICK_DEADZONE = 0.1;
-    private static final double CALIBRATION_POWER = 0.3;
+    private static final double MANUAL_SENSITIVITY_SLOW = 0.2;   // hold < 1s: fine adjustment
+    private static final double MANUAL_SENSITIVITY_FAST = 0.35;  // hold ≥ 1s: full speed
+    private static final double HOLD_THRESHOLD_SEC      = 1.0;
 
-    private boolean prevDpadLeft  = false;
-    private boolean prevDpadRight = false;
-    private boolean prevDpadUp    = false;
+    /** True when GP1 dpad_left or dpad_right was pressed last frame — detects release transition. */
+    private boolean     wasManualActive = false;
+    private ElapsedTime dpadHoldTimer   = new ElapsedTime();
 
     public TurretController(Gamepad gamepad, Turret turret) {
         this.gamepad = gamepad;
@@ -27,63 +28,32 @@ public class TurretController {
     public void update() {
         if (gamepad == null) return;
 
-        // Dpad Up (gamepad1) — finalise calibration, reset encoder, enable auto-aim
-        boolean dpadUpPressed = gamepad1 != null && gamepad1.dpad_up && !prevDpadUp;
-        prevDpadUp = gamepad1 != null && gamepad1.dpad_up;
-        if (dpadUpPressed) {
-            turret.resetEncoder();       // clears offset internally via onEncoderReset()
-            turret.setAutoAimOffset(0.0);
-            autoAimEnabled = true;
-            prevDpadLeft  = false;
-            prevDpadRight = false;
-            return;
-        }
+        // GP1 Dpad Left/Right — manual turret with seamless return to auto-aim on release
+        boolean dpadLeft  = gamepad1 != null && gamepad1.dpad_left;
+        boolean dpadRight = gamepad1 != null && gamepad1.dpad_right;
+        boolean manualActive = dpadLeft || dpadRight;
+        double  manualInput  = dpadLeft ? -1.0 : (dpadRight ? 1.0 : 0.0);
 
-        // Dpad Left (gamepad1) — rotate left raw; on release reset encoder
-        if (gamepad1 != null && gamepad1.dpad_left) {
-            turret.manualRotateRaw(-CALIBRATION_POWER);
-            autoAimEnabled = false;
-            prevDpadLeft = true;
-            return;
-        } else if (gamepad1 != null && prevDpadLeft && !gamepad1.dpad_left) {
-            turret.manualRotateRaw(0.0);
-            turret.resetEncoder();
-            autoAimEnabled = false;
-            prevDpadLeft = false;
-            return;
-        }
-
-        // Dpad Right (gamepad1) — rotate right raw; on release reset encoder
-        if (gamepad1 != null && gamepad1.dpad_right) {
-            turret.manualRotateRaw(CALIBRATION_POWER);
-            autoAimEnabled = false;
-            prevDpadRight = true;
-            return;
-        } else if (gamepad1 != null && prevDpadRight && !gamepad1.dpad_right) {
-            turret.manualRotateRaw(0.0);
-            turret.resetEncoder();
-            autoAimEnabled = false;
-            prevDpadRight = false;
-            return;
-        }
-
-        // Left bumper (gamepad2) — re-enable auto-aim, preserving manual offset
-        if (gamepad.left_bumper) {
-            if (!autoAimEnabled) {
-                double offset = turret.getCurrentAngle() - turret.getCalculatedTargetAngle();
-                turret.setAutoAimOffset(offset);
-            }
-            autoAimEnabled = true;
-        }
-
-        double manualInput = gamepad.right_stick_x;
-
-        if (Math.abs(manualInput) > JOYSTICK_DEADZONE) {
-            if (autoAimEnabled) {
+        if (manualActive) {
+            // First frame: sync PID target to current angle to prevent jerk
+            if (!wasManualActive) {
                 turret.syncManualTarget();
-                autoAimEnabled = false;
+                dpadHoldTimer.reset();
             }
-            turret.manualControl(manualInput * MANUAL_SENSITIVITY);
+            autoAimEnabled = false;
+            double sensitivity = dpadHoldTimer.seconds() >= HOLD_THRESHOLD_SEC
+                    ? MANUAL_SENSITIVITY_FAST
+                    : MANUAL_SENSITIVITY_SLOW;
+            turret.manualControl(manualInput * sensitivity);
+            // Background: getCalculatedTargetAngle() (odometry) keeps updating silently
+        } else if (wasManualActive) {
+            // Dpad just released — manual trim = how far we moved from where auto-aim (odometry +
+            // camera relocOffset) would have pointed. Subtract relocOffset so the manual trim is
+            // independent of the camera correction and they don't fight.
+            double offset = turret.getCurrentAngle() - turret.getCalculatedTargetAngle() - turret.getRelocOffset();
+            turret.setAutoAimOffset(offset);
+            autoAimEnabled = true;
+            turret.autoAim();   // snap immediately to corrected target
         } else {
             if (autoAimEnabled) {
                 turret.autoAim();
@@ -91,6 +61,8 @@ public class TurretController {
                 turret.manualControl(0.0);
             }
         }
+
+        wasManualActive = manualActive;
     }
 
     public boolean isAutoAimEnabled() { return autoAimEnabled; }
