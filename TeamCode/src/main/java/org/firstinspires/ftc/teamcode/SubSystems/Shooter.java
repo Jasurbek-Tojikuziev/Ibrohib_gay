@@ -91,6 +91,13 @@ public class Shooter {
     private static final double MAX_HOOD_ANGLE = 1.0;
     public static double HOOD_OFFSET = 0.0;
 
+    // Feed power during a shot when inside the shooting zone (inches); full power elsewhere.
+    public static double FEED_ZONE_X_MIN = 35.0;
+    public static double FEED_ZONE_X_MAX = 110.0;
+    public static double FEED_ZONE_Y_MIN = 0.0;
+    public static double FEED_ZONE_Y_MAX = 36.0;
+    public static double FEED_ZONE_POWER = 0.7;
+
     // Last-applied PIDF — used to detect FTC Dashboard changes (I and D locked to 0)
     private double lastP = PIDF_P, lastF = PIDF_F;
     private boolean prevDecelerating = false;
@@ -337,7 +344,14 @@ public class Shooter {
             case FEED:
                 // Continuous feed — all 3 balls exit in one uninterrupted intake run.
                 if (!feedStarted) {
-                    intake.on();
+                    // Inside the shooting zone → feed at reduced power; full power elsewhere.
+                    double fx = (follower != null) ? follower.getPose().getX() : Double.NaN;
+                    double fy = (follower != null) ? follower.getPose().getY() : Double.NaN;
+                    boolean inZone = !Double.isNaN(fx)
+                            && fx >= FEED_ZONE_X_MIN && fx <= FEED_ZONE_X_MAX
+                            && fy >= FEED_ZONE_Y_MIN && fy <= FEED_ZONE_Y_MAX;
+                    if (inZone) intake.setPower(FEED_ZONE_POWER);
+                    else        intake.on();
                     feedStarted = true;
                 }
                 if (stateTimer.seconds() >= FEED_TIME) {

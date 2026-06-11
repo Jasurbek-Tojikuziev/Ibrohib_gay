@@ -59,8 +59,8 @@ public class Constants {
             .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
             .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED);
 
-    public static double brakingStrength = 2;
-    public static double brakingStart = 0.1;
+    public static double brakingStrength = 1.0;  // lower = gentler stop (was 2 = abrupt)
+    public static double brakingStart = 1.0;      // higher = start braking earlier / smoother (was 0.1 = late)
     public static PathConstraints pathConstraints = new PathConstraints(0.96, 100, brakingStrength, brakingStart);
 
     public static Follower createFollower(HardwareMap hardwareMap) {

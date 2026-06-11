@@ -19,6 +19,13 @@ public class TurretAimer {
     // Constant aim trim (deg) added to the goal aim — manual bias correction. + / - to shift sides.
     public static double AIM_TRIM_DEG = 1.0;
 
+    // Relocalization ONLY happens inside this field zone (inches). Outside it, the turret aims on
+    // pure odometry/Pinpoint and never relocalizes, even if the error is large.
+    public static double RELOC_ZONE_X_MIN = 35.0;
+    public static double RELOC_ZONE_X_MAX = 110.0;
+    public static double RELOC_ZONE_Y_MIN = 0.0;
+    public static double RELOC_ZONE_Y_MAX = 36.0;
+
     private final TurretMotor      motor;
     private final TurretBallistics ballistics;
     private final Follower         follower;
@@ -57,8 +64,9 @@ public class TurretAimer {
     private static final int    SETTLE_FRAMES        = 5;    // consecutive still loops before trusting
     private static final double RELOC_MAX_CORRECTION = 45.0; // reject ongoing reads bigger than this (bad frame)
     private boolean firstLockDone = false;                   // first settled lock snaps fully (initial localize)
-    private long    lastCorrectionTime = 0L;                 // for the post-correction cooldown
-    private static final double RELOC_COOLDOWN_SEC = 0.4;    // wait after a correction so turret+camera settle
+    private long    lastCorrectionTime = 0L;                 // (unused) legacy cooldown timestamp
+    private static final double RELOC_COOLDOWN_SEC = 0.4;    // (unused)
+    private boolean relocArmed = true;                       // fire ONE full correction per settle event (instant)
 
     // Motion estimate (for "settled" detection)
     private double prevHeadingRad = Double.NaN, prevX = 0.0, prevY = 0.0;
@@ -74,6 +82,7 @@ public class TurretAimer {
     public void clearRelocalization() {
         relocOffset   = 0.0;
         firstLockDone = false;
+        relocArmed    = true;
     }
 
     /** Configure camera-relocalization: sign (+1/-1), correction threshold (deg), settle limits. */
@@ -205,16 +214,14 @@ public class TurretAimer {
         boolean haveOdometry = hasGoal() && (follower != null || localizer != null);
 
         if (haveOdometry) {
-            // Camera relocalization updates autoAimOffset (only when settled + tag stable).
+            // Camera relocalization updates relocOffset (only when settled + tag stable + in-zone).
             updateVisionRelocalization();
 
-            // Until the camera has localized the turret once, HOLD position. This stops the
-            // turret from swinging to a wrong odometry target (unknown/wrong start pose) and
-            // sweeping the camera off the tag before it can correct. Once locked, aim at goal.
-            // aim = odometry angle to goal + camera drift correction (relocOffset) + manual trim.
-            // Odometry has a valid start pose (Auto handoff / fixed), so aim immediately; the
-            // camera snaps relocOffset to truth on the first settled lock and on later drift.
-            double angle = calculateTargetAngle() + relocOffset + autoAimOffset + AIM_TRIM_DEG;
+            // Apply the camera correction ONLY inside the zone — outside it, aim on pure odometry
+            // (the correction was tuned for the zone's geometry and is wrong elsewhere).
+            double appliedReloc = isInRelocZone() ? relocOffset : 0.0;
+
+            double angle = calculateTargetAngle() + appliedReloc + autoAimOffset + AIM_TRIM_DEG;
             angle = wrapToReachable(angle, motor.getCurrentAngle()); // short way across the rear seam
             smoothedTargetAngle = angle;
             motor.setTargetAngle(angle);
@@ -223,7 +230,7 @@ public class TurretAimer {
             if (ballistics != null) {
                 ballistics.calculate(goalPose, tagX, tagY);
                 if (ballistics.isValid()) {
-                    double a = ballistics.getTurretAngleDeg() + relocOffset + autoAimOffset + AIM_TRIM_DEG;
+                    double a = ballistics.getTurretAngleDeg() + appliedReloc + autoAimOffset + AIM_TRIM_DEG;
                     a = wrapToReachable(a, motor.getCurrentAngle());
                     motor.setTargetAngle(a);
                     smoothedTargetAngle = motor.getTargetAngle();
@@ -266,43 +273,35 @@ public class TurretAimer {
 
         smoothedTx += VISION_TX_EMA * (vision.getTargetPitch() - smoothedTx);
 
-        if (!isSettled()) { didCorrect = false; return; } // moving → camera bearing unreliable (latency)
+        // Moving → don't relocalize (camera lag), and ARM so the next time it settles it gets
+        // exactly one clean shot. (Prevents relocalizing while driving fast.)
+        if (!isSettled()) { relocArmed = true; didCorrect = false; return; }
 
-        // Convert the CAMERA's tag angle to the FLYWHEEL/turret-axis view by removing the
-        // camera-beside-flywheel parallax, so the correction puts the flywheel (not the camera)
-        // on the goal. Auto-scales with distance.
+        // Zone gate: only relocalize inside the shooting zone. Everywhere else, trust odometry
+        // entirely — no correction, even if the error is large.
+        if (!isInRelocZone()) { didCorrect = false; return; }
+
         double rdist = vision.getTargetDistance();
         double camParallax = (rdist > 1.0)
                 ? RELOC_PARALLAX_SIGN * Math.toDegrees(Math.atan2(Vision.CAMERA_RIGHT_OFFSET_IN, rdist))
                 : 0.0;
-        double camTagAngle = motor.getCurrentAngle() + visionSign * smoothedTx - camParallax; // measured tag angle
-        double odoTagAngle = fieldAngleTo(tagX, tagY);                                          // odometry's tag prediction
-        // residual = how far odometry (already corrected by relocOffset) is from the camera truth.
-        // NOTE: manual autoAimOffset is intentionally NOT included, so the driver's manual trim is
-        // preserved and never "corrected away" by the camera.
+        double camTagAngle = motor.getCurrentAngle() + visionSign * smoothedTx - camParallax;
+        double odoTagAngle = fieldAngleTo(tagX, tagY);
         double residual = normalizeDeg(camTagAngle - (odoTagAngle + relocOffset));
         lastResidual = residual;
 
-        if (!firstLockDone) {
-            // First settled lock: snap fully regardless of size. Localizes the turret even if the
-            // odometry start pose was unknown/wrong, so it can't get stuck off-target.
-            relocOffset += residual;
-            firstLockDone = true;
-            lastCorrectionTime = System.nanoTime();
-            didCorrect = true;
-            return;
-        }
         if (Math.abs(residual) > RELOC_MAX_CORRECTION) { didCorrect = false; return; } // bad frame
-        // Cooldown: after a correction the turret moves but the camera reading lags, so a fresh
-        // residual is wrong until both settle. Wait before correcting again — this turns a tight
-        // oscillating loop into clean step-wise corrections (kills the shaking).
-        boolean cooled = (System.nanoTime() - lastCorrectionTime) / 1e9 >= RELOC_COOLDOWN_SEC;
-        if (Math.abs(residual) > relocThresholdDeg && cooled) {
-            relocOffset += residual; // snap the aim back onto truth; residual ≈ 0 next loop
-            lastCorrectionTime = System.nanoTime();
-            didCorrect = true;
+
+        // ONE full correction per settle event → the corrected target is applied instantly (no
+        // step-wise cooldown), so the turret jumps straight to the new aim. Re-arms only when the
+        // robot moves again. This makes the in-zone relocalize-and-shoot fast.
+        if (relocArmed && Math.abs(residual) > relocThresholdDeg) {
+            relocOffset  += residual;
+            relocArmed    = false;
+            firstLockDone = true;
+            didCorrect    = true;
         } else {
-            didCorrect = false; // odometry good enough, or cooling down — don't chase camera lag
+            didCorrect = false; // odometry good enough, or already corrected this settle
         }
     }
 
@@ -331,6 +330,15 @@ public class TurretAimer {
     }
 
     private boolean isSettled() { return settledFrames >= SETTLE_FRAMES; }
+
+    /** True when the robot is inside the relocalization/shooting zone (field inches). */
+    private boolean isInRelocZone() {
+        Pose p = getCurrentPose();
+        if (p == null) return false;
+        double rx = p.getX(), ry = p.getY();
+        return rx >= RELOC_ZONE_X_MIN && rx <= RELOC_ZONE_X_MAX
+            && ry >= RELOC_ZONE_Y_MIN && ry <= RELOC_ZONE_Y_MAX;
+    }
 
     /** Raw odometry turret angle (encoder frame) that points at a field point. No clamp. */
     private double fieldAngleTo(double fx, double fy) {
@@ -436,6 +444,7 @@ public class TurretAimer {
         relocOffset          = 0.0;
         smoothedTx           = 0.0;
         firstLockDone        = false; // re-acquire localization after a re-zero
+        relocArmed           = true;
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────

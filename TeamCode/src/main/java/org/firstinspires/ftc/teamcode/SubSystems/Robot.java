@@ -65,6 +65,7 @@ public class Robot {
 
         intake = new Intake(hardwareMap);
         shooter = new Shooter(hardwareMap);
+        shooter.setFollower(follower); // for the in-zone feed-power check
         turret = new Turret(hardwareMap, follower, vision);
         Pose goal = FieldConstants.getGoal(isRedAlliance);
         Pose tag = FieldConstants.getTag(isRedAlliance);
