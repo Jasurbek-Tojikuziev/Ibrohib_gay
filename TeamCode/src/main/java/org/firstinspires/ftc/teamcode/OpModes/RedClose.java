@@ -71,7 +71,7 @@ public class RedClose extends AutoBase {
         // ── Gate cycle 1 ──────────────────────────────────────────────────────
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(new Pose(84.345, 86.273), new Pose(117.436, 67.582)))
-                .setLinearHeadingInterpolation(Math.toRadians(325), Math.toRadians(325))
+                .setLinearHeadingInterpolation(Math.toRadians(325), Math.toRadians(25))
                 .build();
         path8 = follower.pathBuilder()
                 .addPath(new BezierCurve(new Pose(117.436, 67.582), new Pose(125.136, 64.773), new Pose(126.618, 68.891)))
@@ -85,7 +85,7 @@ public class RedClose extends AutoBase {
         // ── Gate cycle 2 ──────────────────────────────────────────────────────
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(new Pose(84.364, 86.800), new Pose(117.436, 67.582)))
-                .setLinearHeadingInterpolation(Math.toRadians(325), Math.toRadians(325))
+                .setLinearHeadingInterpolation(Math.toRadians(325), Math.toRadians(25))
                 .build();
         path11 = follower.pathBuilder()
                 .addPath(new BezierCurve(new Pose(117.436, 67.582), new Pose(125.136, 64.773), new Pose(126.618, 68.891)))
@@ -99,7 +99,7 @@ public class RedClose extends AutoBase {
         // ── Gate cycle 3 ──────────────────────────────────────────────────────
         path13 = follower.pathBuilder()
                 .addPath(new BezierLine(new Pose(84.364, 86.700), new Pose(117.436, 67.582)))
-                .setLinearHeadingInterpolation(Math.toRadians(325), Math.toRadians(325))
+                .setLinearHeadingInterpolation(Math.toRadians(325), Math.toRadians(25))
                 .build();
         path14 = follower.pathBuilder()
                 .addPath(new BezierCurve(new Pose(117.436, 67.582), new Pose(125.136, 64.773), new Pose(126.618, 68.891)))
