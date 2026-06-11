@@ -144,6 +144,18 @@ public class Vision {
     public int getTargetTagId()        { return targetTagId; }
     public int getConsecutiveFrames()  { return consecutiveFrames; }
 
+    /** Raw diagnostic: what the SDK actually receives this instant (independent of filtering). */
+    public String getRawTagDebug() {
+        LLResult r = limelight.getLatestResult();
+        if (r == null) return "result=NULL (SDK got nothing)";
+        long stale = r.getStaleness();
+        List<LLResultTypes.FiducialResult> fids = r.getFiducialResults();
+        if (fids == null) return "stale=" + stale + "ms  fids=NULL";
+        StringBuilder ids = new StringBuilder();
+        for (LLResultTypes.FiducialResult f : fids) ids.append(f.getFiducialId()).append(" ");
+        return "stale=" + stale + "ms  n=" + fids.size() + "  ids=[" + ids.toString().trim() + "]  want=" + targetTagId;
+    }
+
     public void stop() { limelight.stop(); }
 
     // ── Internal ─────────────────────────────────────────────────────────────

@@ -44,7 +44,13 @@
       "Bash(gh api *)",
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; cd \"C:\\\\Users\\\\User\\\\StudioProjects\\\\FTC-34241-CODE\"; .\\\\gradlew.bat assembleDebug 2>&1 | Select-String \"error:|BUILD|FAILED|SUCCESS\" | Select-Object -Last 10)",
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :TeamCode:compileDebugJavaWithJavac 2>&1 | Select-String -Pattern \"error:|BUILD|FAILED\" | Select-Object -First 20)",
-      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :TeamCode:compileDebugJavaWithJavac 2>&1 | Select-String -Pattern \"error:|BUILD|FAILED\" | Select-Object -First 30)"
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :TeamCode:compileDebugJavaWithJavac 2>&1 | Select-String -Pattern \"error:|BUILD|FAILED\" | Select-Object -First 30)",
+      "Bash(git reset *)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :TeamCode:compileDebugJavaWithJavac 2>&1 | Select-String -Pattern \"error:|BUILD|FAILED\" | Select-Object -First 10)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :TeamCode:compileDebugJavaWithJavac 2>&1 | Select-String -Pattern \"error:|BUILD|FAILED\" | Select-Object -First 15)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :TeamCode:compileDebugJavaWithJavac 2>&1 | Select-String -Pattern \"error:|BUILD|FAILED\" | Select-Object -First 8)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :TeamCode:compileDebugJavaWithJavac 2>&1 | Select-String -Pattern \"error:|BUILD SUCCESSFUL|FAILED\" | Select-Object -First 8)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; .\\\\gradlew.bat :TeamCode:compileDebugJavaWithJavac 2>&1 | Select-String -Pattern \"error:|BUILD SUCCESSFUL|FAILED\" | Select-Object -First 10)"
     ]
   }
 }

@@ -71,6 +71,7 @@ public class Robot {
         Pose tag = FieldConstants.getTag(isRedAlliance);
         turret.setGoalPose(goal);
         turret.setTagPose(tag.getX(), tag.getY());
+        turret.setAimTrimAlliance(isRedAlliance); // red/blue use different aim trims
 
         intakeController = new IntakeController(null, intake);
         shooterController = new ShooterController(null, shooter);

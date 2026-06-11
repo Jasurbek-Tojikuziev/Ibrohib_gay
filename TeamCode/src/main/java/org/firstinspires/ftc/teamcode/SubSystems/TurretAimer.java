@@ -17,7 +17,11 @@ public class TurretAimer {
     public static double RELOC_PARALLAX_SIGN = 1.0;
 
     // Constant aim trim (deg) added to the goal aim — manual bias correction. + / - to shift sides.
-    public static double AIM_TRIM_DEG = 1.0;
+    // Alliance-specific: red and blue goals are on opposite sides, so the SAME encoder trim shifts
+    // them toward opposite sides — they need separate values. Selected by setAimTrimAlliance().
+    public static double RED_AIM_TRIM_DEG  =  1.0;  // red is correct at +1°
+    public static double BLUE_AIM_TRIM_DEG = -0.5;  // tune on dash (+ = aim more right, - = more left)
+    private boolean isRedForTrim = true;
 
     // Relocalization ONLY happens inside this field zone (inches). Outside it, the turret aims on
     // pure odometry/Pinpoint and never relocalizes, even if the error is large.
@@ -82,7 +86,7 @@ public class TurretAimer {
     public void clearRelocalization() {
         relocOffset   = 0.0;
         firstLockDone = false;
-        relocArmed    = true;
+        relocArmed    = false; // after a reset, trust the reset pose; re-correct only after driving
     }
 
     /** Configure camera-relocalization: sign (+1/-1), correction threshold (deg), settle limits. */
@@ -162,6 +166,9 @@ public class TurretAimer {
 
     // ── Goal setup ───────────────────────────────────────────────────────────
 
+    /** Select which alliance's aim trim to use (red and blue need different values). */
+    public void setAimTrimAlliance(boolean isRed) { this.isRedForTrim = isRed; }
+
     public void setGoalPose(Pose goal) {
         this.goalPose = goal;
         if (goal != null) {
@@ -220,8 +227,9 @@ public class TurretAimer {
             // Apply the camera correction ONLY inside the zone — outside it, aim on pure odometry
             // (the correction was tuned for the zone's geometry and is wrong elsewhere).
             double appliedReloc = isInRelocZone() ? relocOffset : 0.0;
+            double aimTrim = isRedForTrim ? RED_AIM_TRIM_DEG : BLUE_AIM_TRIM_DEG;
 
-            double angle = calculateTargetAngle() + appliedReloc + autoAimOffset + AIM_TRIM_DEG;
+            double angle = calculateTargetAngle() + appliedReloc + autoAimOffset + aimTrim;
             angle = wrapToReachable(angle, motor.getCurrentAngle()); // short way across the rear seam
             smoothedTargetAngle = angle;
             motor.setTargetAngle(angle);
@@ -230,7 +238,7 @@ public class TurretAimer {
             if (ballistics != null) {
                 ballistics.calculate(goalPose, tagX, tagY);
                 if (ballistics.isValid()) {
-                    double a = ballistics.getTurretAngleDeg() + appliedReloc + autoAimOffset + AIM_TRIM_DEG;
+                    double a = ballistics.getTurretAngleDeg() + appliedReloc + autoAimOffset + aimTrim;
                     a = wrapToReachable(a, motor.getCurrentAngle());
                     motor.setTargetAngle(a);
                     smoothedTargetAngle = motor.getTargetAngle();
@@ -444,7 +452,7 @@ public class TurretAimer {
         relocOffset          = 0.0;
         smoothedTx           = 0.0;
         firstLockDone        = false; // re-acquire localization after a re-zero
-        relocArmed           = true;
+        relocArmed           = false; // trust the reset; re-correct only after driving
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────

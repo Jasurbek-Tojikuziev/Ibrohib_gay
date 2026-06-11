@@ -191,6 +191,16 @@ public class BlueAllianceTeleOp extends LinearOpMode {
         telemetry.addData("Current Angle", "%.1f°", robot.turret.getCurrentAngle());
         telemetry.addData("Target Angle", "%.1f°", robot.turret.getTargetAngle());
 
+        // Vision / aim status
+        telemetry.addLine();
+        telemetry.addLine("=== VISION / AIM ===");
+        telemetry.addData("Tag seen", robot.turret.hasVisionTarget() ? "YES — LOCK" : "no");
+        telemetry.addData("Cam raw", robot.vision.getRawTagDebug());
+        telemetry.addData("Auto-aim", robot.turretController.isAutoAimEnabled() ? "ON (aiming)" : "OFF (manual)");
+        telemetry.addData("Reloc", robot.turret.didReloc() ? "*** correcting ***"
+                : (robot.turret.isSettledForReloc() ? "settled" : "moving"));
+        telemetry.addData("Reloc offset", "%.1f°", robot.turret.getRelocOffset());
+
         // Shooter
         telemetry.addLine();
         telemetry.addLine("=== SHOOTER ===");

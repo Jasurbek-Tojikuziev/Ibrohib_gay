@@ -72,6 +72,7 @@ public class Turret {
     // ── Goal / tag setup ─────────────────────────────────────────────────────
 
     public void setGoalPose(Pose goal)           { aimer.setGoalPose(goal); }
+    public void setAimTrimAlliance(boolean isRed){ aimer.setAimTrimAlliance(isRed); }
     public Pose getGoalPose()                    { return aimer.getGoalPose(); }
     public void setTagPose(double x, double y)   { aimer.setTagPose(x, y); }
     public boolean hasGoal()                     { return aimer.hasGoal(); }
@@ -140,6 +141,7 @@ public class Turret {
     public void returnToCenter()                   { motor.returnToCenter(); }
     public void syncManualTarget()                 { motor.syncManualTarget(); }
     public void manualControl(double input)        { motor.manualControl(input); }
+    public void manualMove(double power)           { motor.manualMove(power); }
     public void manualOverride(double direction)   { motor.manualOverride(direction); }
     public void manualRotateRaw(double power)      { motor.manualRotateRaw(power); }
     public void setPIDF(double p, double i, double d, double f) { motor.setPIDF(p, i, d, f); }

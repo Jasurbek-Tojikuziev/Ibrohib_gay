@@ -140,7 +140,7 @@ public class Shooter {
         intakeStop = hardwareMap.get(Servo.class, "intakeStop");
 
         // Motor1 — master, firmware-level velocity PIDF (~1kHz)
-        shooterMotor1.setDirection(DcMotorSimple.Direction.FORWARD);
+        shooterMotor1.setDirection(DcMotorSimple.Direction.REVERSE);
         shooterMotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         shooterMotor1.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         shooterMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -149,7 +149,7 @@ public class Shooter {
                 new PIDFCoefficients(PIDF_P, 0, 0, PIDF_F));
 
         // Motor2 — slave, no encoder, synced via feedforward each loop
-        shooterMotor2.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooterMotor2.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterMotor2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         shooterMotor2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 

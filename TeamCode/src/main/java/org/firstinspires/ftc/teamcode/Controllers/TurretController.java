@@ -1,10 +1,12 @@
 package org.firstinspires.ftc.teamcode.Controllers;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.SubSystems.Turret;
 
+@Config
 public class TurretController {
     public Gamepad gamepad;
     public Gamepad gamepad1; // For calibration (dpad left/right/up)
@@ -12,9 +14,10 @@ public class TurretController {
 
     public boolean autoAimEnabled = true;
 
-    private static final double MANUAL_SENSITIVITY_SLOW = 0.2;   // hold < 1s: fine adjustment
-    private static final double MANUAL_SENSITIVITY_FAST = 0.35;  // hold ≥ 1s: full speed
-    private static final double HOLD_THRESHOLD_SEC      = 1.0;
+    // Direct motor power for manual dpad moves (bypasses the PID deadzone so it actually moves).
+    public static double MANUAL_POWER_SLOW = 0.22;  // hold < 1s: slow/slight
+    public static double MANUAL_POWER_FAST = 0.5;   // hold ≥ 1s: fast
+    public static double HOLD_THRESHOLD_SEC = 1.0;  // press shorter than this = slow, longer = fast
 
     /** True when GP1 dpad_left or dpad_right was pressed last frame — detects release transition. */
     private boolean     wasManualActive = false;
@@ -41,10 +44,10 @@ public class TurretController {
                 dpadHoldTimer.reset();
             }
             autoAimEnabled = false;
-            double sensitivity = dpadHoldTimer.seconds() >= HOLD_THRESHOLD_SEC
-                    ? MANUAL_SENSITIVITY_FAST
-                    : MANUAL_SENSITIVITY_SLOW;
-            turret.manualControl(manualInput * sensitivity);
+            double power = dpadHoldTimer.seconds() >= HOLD_THRESHOLD_SEC
+                    ? MANUAL_POWER_FAST
+                    : MANUAL_POWER_SLOW;
+            turret.manualMove(manualInput * power);
             // Background: getCalculatedTargetAngle() (odometry) keeps updating silently
         } else if (wasManualActive) {
             // Dpad just released — manual trim = how far we moved from where auto-aim (odometry +

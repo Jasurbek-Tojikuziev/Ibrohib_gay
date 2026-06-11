@@ -117,6 +117,19 @@ public class TurretMotor {
         turretMotor.setPower(power);
     }
 
+    /**
+     * Direct-power manual move with soft limits. Drives the motor directly (no PID deadzone), and
+     * keeps targetAngle synced to the physical angle so PID holds smoothly when released.
+     */
+    public void manualMove(double power) {
+        integral  = 0;
+        lastError = 0;
+        double current = getCurrentAngle();
+        targetAngle = current; // hold here the instant the dpad is released
+        boolean atLimit = (power > 0 && current >= MAX_ANGLE) || (power < 0 && current <= MIN_ANGLE);
+        turretMotor.setPower((Math.abs(power) > 0.01 && !atLimit) ? power : 0.0);
+    }
+
     /** Direct power bypass — no PIDF. Resets integral to avoid fight on return. */
     public void manualOverride(double direction) {
         integral    = 0;
