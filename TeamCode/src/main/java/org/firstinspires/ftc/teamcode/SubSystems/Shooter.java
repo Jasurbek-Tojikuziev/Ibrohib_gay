@@ -40,8 +40,8 @@ public class Shooter {
         RESET
     }
 
-    private static final double STOP_OPEN = 0.06;
-    private static final double STOP_CLOSE = 0.22;
+    private static final double STOP_OPEN = 0.35;
+    private static final double STOP_CLOSE = 0.55;
     private static final double INTAKE_STOP_ON = 0.9;   // Позиция во время стрельбы
     private static final double INTAKE_STOP_OFF = 1.0;  // Обычная позиция (не стреляем)
     private static final double OPEN_STOP_TIME = 0.06;
@@ -55,6 +55,7 @@ public class Shooter {
     public static double PIDF_I        = 0.0;
     public static double PIDF_D        = 0.0;
     public static double PIDF_F        = 13.0;
+
     public static double TARGET_VELOCITY = 1300.0; // ticks/sec, fallback when no distance
 
     // Active braking: when current velocity exceeds target by DECEL_THRESHOLD,
@@ -65,30 +66,29 @@ public class Shooter {
 
     // Flywheel velocity formula coefficients (4th order polynomial)
     // y = 0.0000108902x^4 - 0.00340796x^3 + 0.357289x^2 - 9.00105x + 1017.27504
-    public static double VELOCITY_A =  0.0000108902;
-    public static double VELOCITY_B = -0.00340796;
-    public static double VELOCITY_C =  0.357289;
-    public static double VELOCITY_D = -9.00105;
-    public static double VELOCITY_E =  1017.27504;
+    public static double VELOCITY_A =  0.0000294289;
+    public static double VELOCITY_B = -0.00814297;
+    public static double VELOCITY_C =  0.780755;
+    public static double VELOCITY_D = -22.12976;
+    public static double VELOCITY_E =  1543.0385;
 
     public static double VELOCITY_READY_THRESHOLD = 0.93; // 93% of target = "at speed"
 
-    // Velocity limits (clamp)
-    private static final double MIN_VELOCITY = 0.0;        // Минимальная velocity
-    private static final double MAX_VELOCITY = 1700.0;
+    // Velocity limits
+    private static final double MIN_VELOCITY = 0.0;
     public static double FLYWHEEL_OFFSET = 0.0;           // Offset для калибровки (tunable)
 
     // Hood angle formula (4th order polynomial)
     // y = (7.08406e-8)x^4 - 0.0000213699x^3 + 0.00206296x^2 - 0.0579972x + 0.470963  R²=0.9973
-    public static double HOOD_A =  0.0000000708406;
-    public static double HOOD_B = -0.0000213699;
-    public static double HOOD_C =  0.00206296;
-    public static double HOOD_D = -0.0579972;
-    public static double HOOD_E =  0.470963;
+    public static double HOOD_A =  0.0000000177739;
+    public static double HOOD_B = -0.00000407925;
+    public static double HOOD_C =  0.000235184;
+    public static double HOOD_D =  0.00858683;
+    public static double HOOD_E = -0.181648;
 
     // Hood angle limits
     private static final double MIN_HOOD_ANGLE = 0.0;
-    private static final double MAX_HOOD_ANGLE = 1.0;
+    private static final double MAX_HOOD_ANGLE = 0.8;
     public static double HOOD_OFFSET = 0.0;
 
     // Feed power during a shot when inside the shooting zone (inches); full power elsewhere.
@@ -148,10 +148,14 @@ public class Shooter {
                 DcMotor.RunMode.RUN_USING_ENCODER,
                 new PIDFCoefficients(PIDF_P, 0, 0, PIDF_F));
 
-        // Motor2 — slave, no encoder, synced via feedforward each loop
+        // Motor2 — independent velocity PIDF, same target as motor1
         shooterMotor2.setDirection(DcMotorSimple.Direction.FORWARD);
         shooterMotor2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        shooterMotor2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooterMotor2.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        shooterMotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterMotor2.setPIDFCoefficients(
+                DcMotor.RunMode.RUN_USING_ENCODER,
+                new PIDFCoefficients(PIDF_P, 0, 0, PIDF_F));
 
         // Инициализируем smoothed hood position перед первым setHoodPosition
         smoothedHoodPosition = HoodPosition.CLOSE.position;
@@ -185,7 +189,7 @@ public class Shooter {
         double velocity = VELOCITY_A * d4 + VELOCITY_B * d3 + VELOCITY_C * d2
                         + VELOCITY_D * distanceInches + VELOCITY_E;
 
-        return clamp(velocity, MIN_VELOCITY, MAX_VELOCITY) + FLYWHEEL_OFFSET;
+        return Math.max(MIN_VELOCITY, velocity) + FLYWHEEL_OFFSET;
     }
 
     /**
@@ -390,7 +394,7 @@ public class Shooter {
     public void updatePID() {
         if (targetVelocity == 0) {
             shooterMotor1.setVelocity(0);
-            shooterMotor2.setPower(0);
+            shooterMotor2.setVelocity(0);
             return;
         }
 
@@ -399,27 +403,18 @@ public class Shooter {
 
         // During deceleration: F=0 so firmware F-term doesn't cancel P-term braking.
         // Restore full PIDF when back at speed or when dashboard values changed.
-        // I and D locked to 0 (Pratt's method: only P and F needed for flywheels)
         if (decelerating != prevDecelerating
                 || PIDF_P != lastP || PIDF_F != lastF) {
             double f = decelerating ? 0 : PIDF_F;
-            shooterMotor1.setPIDFCoefficients(
-                    DcMotor.RunMode.RUN_USING_ENCODER,
-                    new PIDFCoefficients(PIDF_P, 0, 0, f));
+            PIDFCoefficients c = new PIDFCoefficients(PIDF_P, 0, 0, f);
+            shooterMotor1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, c);
+            shooterMotor2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, c);
             lastP = PIDF_P; lastF = PIDF_F;
         }
         prevDecelerating = decelerating;
 
-        // Master: SDK держит PIDF сам на firmware уровне
         shooterMotor1.setVelocity(targetVelocity);
-
-        // Slave: feedforward + P correction — motor2 mirrors master's effort
-        if (!decelerating) {
-            double error = targetVelocity - currentVel;
-            shooterMotor2.setPower((PIDF_F * targetVelocity + PIDF_P * error) / 32767.0);
-        } else {
-            shooterMotor2.setPower(0);
-        }
+        shooterMotor2.setVelocity(targetVelocity);
     }
 
     public void on() {
@@ -429,7 +424,7 @@ public class Shooter {
     public void off() {
         targetVelocity = 0;
         shooterMotor1.setVelocity(0);
-        shooterMotor2.setPower(0);
+        shooterMotor2.setVelocity(0);
     }
 
     public void setTargetVelocity(double velocity) {
@@ -447,7 +442,7 @@ public class Shooter {
     }
 
     public double getCurrentVelocity() {
-        return shooterMotor1.getVelocity();
+        return Math.abs(shooterMotor1.getVelocity());
     }
 
     public double getTargetVelocity() {

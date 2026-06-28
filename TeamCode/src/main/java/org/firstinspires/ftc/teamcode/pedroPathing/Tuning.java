@@ -126,21 +126,7 @@ public class Tuning extends SelectableOpMode {
         follower.setTeleOpDrive(0,0,0,true);
     }
 
-    /**
-     * Live-updates predictive braking coefficients on the running follower.
-     * Uses reflection because Follower 2.1.2 has no public setPredictiveBrakingCoefficients().
-     * Call this each loop iteration to propagate Panels changes to kP/kLinear/kQuadratic.
-     */
-    public static void updatePredictiveBraking() {
-        try {
-            VectorCalculator vc = follower.getVectorCalculator();
-            java.lang.reflect.Field pbcField = vc.getClass().getDeclaredField("predictiveBrakingController");
-            pbcField.setAccessible(true);
-            PredictiveBrakingController pbc = (PredictiveBrakingController) pbcField.get(vc);
-            pbc.setCoefficients(new PredictiveBrakingCoefficients(
-                    Constants.predictiveKP, Constants.predictiveKLinear, Constants.predictiveKQuadratic));
-        } catch (Exception ignored) {}
-    }
+    // predictive braking removed — add back after translational tuning
 }
 
 /**
@@ -813,8 +799,7 @@ class TranslationalTuner extends OpMode {
 
     @Override
     public void start() {
-        follower.deactivateAllPIDFs();
-        follower.activateTranslational();
+        follower.activateAllPIDFs();
         follower.holdPoint(new Pose(72, 72, 0));
     }
 
@@ -973,8 +958,8 @@ class Line extends OpMode {
     public static double DISTANCE = 40;
     private boolean forward = true;
 
-    private Path forwards;
-    private Path backwards;
+    private PathChain forwards;
+    private PathChain backwards;
 
     @Override
     public void init() {
@@ -995,11 +980,17 @@ class Line extends OpMode {
     @Override
     public void start() {
         follower.activateAllPIDFs();
-        forwards = new Path(new BezierLine(new Pose(72,72), new Pose(DISTANCE + 72,72)));
-        forwards.setConstantHeadingInterpolation(0);
-        backwards = new Path(new BezierLine(new Pose(DISTANCE + 72,72), new Pose(72,72)));
-        backwards.setConstantHeadingInterpolation(0);
-        follower.followPath(forwards);
+        forwards = follower.pathBuilder()
+                .setGlobalDeceleration()
+                .addPath(new BezierLine(new Pose(72, 72), new Pose(DISTANCE + 72, 72)))
+                .setConstantHeadingInterpolation(0)
+                .build();
+        backwards = follower.pathBuilder()
+                .setGlobalDeceleration()
+                .addPath(new BezierLine(new Pose(DISTANCE + 72, 72), new Pose(72, 72)))
+                .setConstantHeadingInterpolation(0)
+                .build();
+        follower.followPath(forwards, true);
     }
 
     /** This runs the OpMode, updating the Follower as well as printing out the debug statements to the Telemetry */
@@ -1011,16 +1002,15 @@ class Line extends OpMode {
         if (!follower.isBusy()) {
             if (forward) {
                 forward = false;
-                backwards.setBrakingStrength(Constants.brakingStrength);
-                follower.followPath(backwards);
+                follower.followPath(backwards, true);
             } else {
                 forward = true;
-                forwards.setBrakingStrength(Constants.brakingStrength);
-                follower.followPath(forwards);
+                follower.followPath(forwards, true);
             }
         }
 
         telemetryM.debug("Driving Forward?: " + forward);
+        telemetryM.debug("isBusy: " + follower.isBusy());
         telemetryM.debug("driveP=" + Constants.driveP + " driveF=" + Constants.driveF + " braking=" + Constants.brakingStrength);
         telemetryM.update(telemetry);
     }

@@ -23,7 +23,7 @@ public class BlueAutoClose extends AutoBase {
 
     @Override
     protected void onStart() {
-        turret.setAutoAimOffset(TURRET_OFFSET_DEG);
+        autoAimOffsetDeg = TURRET_OFFSET_DEG;
     }
 
     @Override

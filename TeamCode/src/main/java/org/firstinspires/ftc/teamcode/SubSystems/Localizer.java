@@ -12,6 +12,18 @@ public class Localizer {
     private static Localizer instance = null;
     private GoBildaPinpointDriver pinpoint;
 
+    // ── Auto→TeleOp pose handoff ─────────────────────────────────────────────
+    // Set once when Auto runs; consumed once by the first TeleOp built after it.
+    // → TeleOp continues from Auto's final pose exactly once.
+    // → Any other start (fresh power-on, standalone or repeat TeleOp) uses the default start pose.
+    private static boolean autoPoseHandoffPending = false;
+    public static void markAutoPoseHandoff() { autoPoseHandoffPending = true; }
+    public static boolean consumeAutoPoseHandoff() {
+        boolean pending = autoPoseHandoffPending;
+        autoPoseHandoffPending = false;
+        return pending;
+    }
+
     private double x = 0;
     private double y = 0;
     private double heading = 0;

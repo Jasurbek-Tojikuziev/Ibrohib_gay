@@ -14,7 +14,7 @@ import com.qualcomm.robotcore.hardware.ServoImplEx;
 public class ShooterTuner extends LinearOpMode {
 
     private DcMotorEx motor1, motor2;
-    private DcMotor intake;
+    private DcMotor intake, intake2;
     private Servo hood;
 
     private double targetVelocity = 1000;
@@ -29,15 +29,18 @@ public class ShooterTuner extends LinearOpMode {
     public void runOpMode() {
         motor1 = hardwareMap.get(DcMotorEx.class, "shooterMotor1");
         motor2 = hardwareMap.get(DcMotorEx.class, "shooterMotor2");
-        intake = hardwareMap.get(DcMotor.class, "Intake");
+        intake  = hardwareMap.get(DcMotor.class, "Intake");
+        intake.setDirection(DcMotorSimple.Direction.FORWARD);
+        intake2 = hardwareMap.get(DcMotor.class, "Intake2");
+        intake2.setDirection(DcMotorSimple.Direction.REVERSE);
         hood   = hardwareMap.get(Servo.class, "shooterHood");
 
-        motor1.setDirection(DcMotorSimple.Direction.FORWARD);
+        motor1.setDirection(DcMotorSimple.Direction.REVERSE);
         motor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motor1.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         motor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        motor2.setDirection(DcMotorSimple.Direction.REVERSE);
+        motor2.setDirection(DcMotorSimple.Direction.FORWARD);
         motor2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motor2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
@@ -62,7 +65,7 @@ public class ShooterTuner extends LinearOpMode {
             // Velocity — hold to repeat, RB = large step
             if (gamepad1.dpad_up)   targetVelocity += rb ? 100 : 10;
             if (gamepad1.dpad_down) targetVelocity -= rb ? 100 : 10;
-            targetVelocity = Math.max(0, Math.min(1700, targetVelocity));
+            targetVelocity = Math.max(0, targetVelocity);
 
             // Hood — hold to repeat, RB = large step
             if (gamepad1.dpad_left)  hoodPosition -= rb ? 0.1 : 0.01;
@@ -86,14 +89,15 @@ public class ShooterTuner extends LinearOpMode {
             }
 
             // Intake — hold right bumper + right trigger
-            intake.setPower(gamepad1.right_trigger > 0.5 ? -1.0 : 0.0);
+            double intakePower = gamepad1.right_trigger > 0.5 ? 1.0 : 0.0;
+            intake.setPower(intakePower);
+            intake2.setPower(intakePower);
 
             // Drive motors
             double currentVel = motor1.getVelocity();
             if (motorsRunning) {
                 motor1.setVelocity(targetVelocity);
-                double error = targetVelocity - currentVel;
-                motor2.setPower((pidfF * targetVelocity + pidfP * error) / 32767.0);
+                motor2.setPower(motor1.getPower());
             } else {
                 motor1.setPower(0);
                 motor2.setPower(0);
@@ -124,6 +128,7 @@ public class ShooterTuner extends LinearOpMode {
         motor1.setPower(0);
         motor2.setPower(0);
         intake.setPower(0);
+        intake2.setPower(0);
     }
 
     private void applyPIDF() {

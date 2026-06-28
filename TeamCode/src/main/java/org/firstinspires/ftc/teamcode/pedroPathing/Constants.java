@@ -21,43 +21,43 @@ public class Constants {
 
     // ── Translational PIDF ────────────────────────────────────────────────────
     public static double transP = 0.095,  transI = 0, transD = 0.0095,  transF = 0.0076;
-    public static double trans2P = 0.19,  trans2I = 0, trans2D = 0.0209, trans2F = 0;
+    public static double trans2P = 0.22,  trans2I = 0, trans2D = 0.0209, trans2F = 0;
     public static double translationalPIDFSwitch = 6;
 
     // ── Heading PIDF ──────────────────────────────────────────────────────────
-    public static double headP = 1.615,  headI = 0, headD = 0.1425,  headF = 0.019;
-    public static double head2P = 2.1,   head2I = 0, head2D = 0.095,  head2F = 0;
+    public static double headP = 0.7,  headI = 0, headD = 0.0225,  headF = 0.019;
+    public static double head2P = 1.2,   head2I = 0, head2D = 0.05,  head2F = 0.01;
 
     // ── Drive PIDF ────────────────────────────────────────────────────────────
-    public static double driveP = 0.03325,  driveI = 0, driveD = 0.000002,   driveF = 0.6,  driveFilter = 0.19;
+    public static double driveP = 0.035, driveI = 0, driveD = 0.000002,   driveF = 0.7,  driveFilter = 0.19;
     public static double drive2P = 0.04275, drive2I = 0, drive2D = 0.00000665, drive2F = 0.6, drive2Filter = 0.0;
 
     // ── Predictive Braking ────────────────────────────────────────────────────
     public static double predictiveKP         = 0.15;
-    public static double predictiveKLinear    = 0.07519223906924728;
-    public static double predictiveKQuadratic = 0.0019185831783996089;
+    public static double predictiveKLinear    = 0.080647;
+    public static double predictiveKQuadratic = 0.001937;
 
     // ── Centripetal & Robot ───────────────────────────────────────────────────
     public static double centripetalScaling = 0;  // disabled — predictive braking accounts for this
-    public static double mass = 11.0;
+    public static double mass = 11.3;
 
     // ── Zero Power Accelerations ──────────────────────────────────────────────
-    public static double forwardZeroPowerAccel = -34.41482226756982;
-    public static double lateralZeroPowerAccel = -59.02340458740202;
+    public static double forwardZeroPowerAccel = -29.91;
+    public static double lateralZeroPowerAccel = -51.742;
 
     // ── Drive Velocity ────────────────────────────────────────────────────────
-    public static double xVelocity = 86.636;
-    public static double yVelocity = 66.908;
+    public static double xVelocity = 87.5;
+    public static double yVelocity = 72;
 
     // ── Localizer ─────────────────────────────────────────────────────────────
     public static PinpointConstants localizerConstants = new PinpointConstants()
-            .forwardPodY(-2.95276)
-            .strafePodX(-5.51181)
+            .forwardPodY(-2.953)
+            .strafePodX(-3.543)
             .distanceUnit(DistanceUnit.INCH)
             .hardwareMapName("pinpoint")
             .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD)
             .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
-            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED);
+            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
     public static double brakingStrength = 1.0;  // lower = gentler stop (was 2 = abrupt)
     public static double brakingStart = 1.0;      // higher = start braking earlier / smoother (was 0.1 = late)

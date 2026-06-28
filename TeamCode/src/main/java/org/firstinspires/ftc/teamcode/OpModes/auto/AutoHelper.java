@@ -8,22 +8,22 @@ import com.pedropathing.util.Timer;
 
 import org.firstinspires.ftc.teamcode.SubSystems.Intake;
 import org.firstinspires.ftc.teamcode.SubSystems.Shooter;
-import org.firstinspires.ftc.teamcode.SubSystems.Turret;
+import org.firstinspires.ftc.teamcode.SubSystems.TurretServo;
 
 public class AutoHelper {
-    private final Follower follower;
-    private final Shooter shooter;
-    private final Intake intake;
-    private final Turret turret;
-    private final Timer pathTimer;
+    private final Follower    follower;
+    private final Shooter     shooter;
+    private final Intake      intake;
+    private final TurretServo turretServo;
+    private final Timer       pathTimer;
 
     public AutoHelper(Follower follower, Shooter shooter,
-                      Intake intake, Turret turret, Timer pathTimer) {
-        this.follower = follower;
-        this.shooter = shooter;
-        this.intake = intake;
-        this.turret = turret;
-        this.pathTimer = pathTimer;
+                      Intake intake, TurretServo turretServo, Timer pathTimer) {
+        this.follower    = follower;
+        this.shooter     = shooter;
+        this.intake      = intake;
+        this.turretServo = turretServo;
+        this.pathTimer   = pathTimer;
     }
 
     public boolean pathDone(double minTime) {
@@ -39,7 +39,7 @@ public class AutoHelper {
     }
 
     public void goToShootAtHeading(Pose shootPose, double turretAngle, double customHeading) {
-        turret.setTargetAngle(turretAngle);
+        turretServo.setTargetAngle(turretAngle);
         follower.followPath(
                 follower.pathBuilder()
                         .addPath(new BezierLine(follower.getPose(), shootPose))
@@ -48,10 +48,8 @@ public class AutoHelper {
                 true);
     }
 
-    // --- goToShoot: turretAngle всегда первым, потом followPath (одновременно) ---
-
     public void goToShoot(Pose shootPose, double turretAngle) {
-        turret.setTargetAngle(turretAngle); // сначала турель
+        turretServo.setTargetAngle(turretAngle);
         follower.followPath(
                 follower.pathBuilder()
                         .addPath(new BezierLine(follower.getPose(), shootPose))
@@ -61,7 +59,7 @@ public class AutoHelper {
     }
 
     public void goToShoot(Pose shootPose, double speed, double turretAngle) {
-        turret.setTargetAngle(turretAngle); // сначала турель
+        turretServo.setTargetAngle(turretAngle);
         follower.followPath(
                 follower.pathBuilder()
                         .addPath(new BezierLine(follower.getPose(), shootPose))
@@ -71,7 +69,7 @@ public class AutoHelper {
     }
 
     public void goToShoot(Pose shootPose, double speed, double endTime, double turretAngle) {
-        turret.setTargetAngle(turretAngle); // сначала турель
+        turretServo.setTargetAngle(turretAngle);
         follower.followPath(
                 follower.pathBuilder()
                         .addPath(new BezierLine(follower.getPose(), shootPose))
@@ -80,20 +78,17 @@ public class AutoHelper {
                 speed, true);
     }
 
-    // --- startCollect: turretAngle опциональный ---
-
     public void startCollect(PathChain path, double speed) {
         intake.on();
         follower.followPath(path, speed, true);
     }
 
     public void startCollect(PathChain path, double speed, double turretAngle) {
-        turret.setTargetAngle(turretAngle); // сначала турель
+        turretServo.setTargetAngle(turretAngle);
         intake.on();
         follower.followPath(path, speed, true);
     }
 
-    // startCollect динамический (Pose) — без endTime, без turretAngle
     public void startCollect(Pose collectPose, double speed) {
         intake.on();
         follower.followPath(
@@ -104,7 +99,6 @@ public class AutoHelper {
                 speed, true);
     }
 
-    // startCollect с динамическим построением пути (как goToShoot) — позволяет задать endTime
     public void startCollect(Pose collectPose, double speed, double endTime) {
         intake.on();
         follower.followPath(
@@ -116,7 +110,7 @@ public class AutoHelper {
     }
 
     public void startCollect(Pose collectPose, double speed, double endTime, double turretAngle) {
-        turret.setTargetAngle(turretAngle);
+        turretServo.setTargetAngle(turretAngle);
         intake.on();
         follower.followPath(
                 follower.pathBuilder()

@@ -73,12 +73,16 @@ public class BlueAllianceTeleOp extends LinearOpMode {
         org.firstinspires.ftc.teamcode.SubSystems.Localizer localizer =
             org.firstinspires.ftc.teamcode.SubSystems.Localizer.getInstance();
 
+        // Consume the one-time Auto→TeleOp pose handoff (mirrors the turret handoff):
+        // Auto's final pose is used exactly once; any later run falls back to a default start.
+        boolean usedAutoPose = org.firstinspires.ftc.teamcode.SubSystems.Localizer.consumeAutoPoseHandoff();
+
         double lastX = localizer.getX();
         double lastY = localizer.getY();
         double lastHeading = localizer.getHeading();
 
         Pose startPose;
-        if (Math.abs(lastX) > 1.0 || Math.abs(lastY) > 1.0) {
+        if (usedAutoPose && (Math.abs(lastX) > 1.0 || Math.abs(lastY) > 1.0)) {
             // Auto ran and set position - use it
             startPose = new Pose(lastX, lastY, Math.toRadians(lastHeading));
             telemetry.addLine("✓ Using position from Auto");
@@ -125,10 +129,11 @@ public class BlueAllianceTeleOp extends LinearOpMode {
                     resetPose.getY(),
                     Math.toDegrees(resetPose.getHeading())
                 );
+                robot.turret.resetEncoder();         // current physical turret position becomes 0° (driver centered it)
                 robot.turret.setAutoAimOffset(0.0);  // clear manual offset — position is now known
                 robot.turret.clearRelocalization();  // position reset → drop stale camera correction
                 robot.turretController.enableAutoAim();
-                robot.turret.autoAim();
+                robot.turret.autoAim();              // drive to calculated target for this reset pose
                 didReset = true;
                 resetDebounceTimer.reset();
             }
@@ -139,10 +144,11 @@ public class BlueAllianceTeleOp extends LinearOpMode {
                 robot.follower.setPose(resetPose);
                 org.firstinspires.ftc.teamcode.SubSystems.Localizer.getInstance().setPosition(
                     resetPose.getX(), resetPose.getY(), Math.toDegrees(resetPose.getHeading()));
+                robot.turret.resetEncoder();         // current physical turret position becomes 0° (driver centered it)
                 robot.turret.setAutoAimOffset(0.0);  // clear manual offset — position is now known
                 robot.turret.clearRelocalization();  // position reset → drop stale camera correction
                 robot.turretController.enableAutoAim();
-                robot.turret.autoAim();
+                robot.turret.autoAim();              // drive to calculated target for this reset pose
                 didReset = true;
                 resetDebounceTimer.reset();
             }

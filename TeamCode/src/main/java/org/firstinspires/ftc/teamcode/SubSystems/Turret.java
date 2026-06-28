@@ -22,6 +22,18 @@ public class Turret {
     public static final double BLUE_TARGET =  90.0;
     public static final double ZERO        =   0.0;
 
+    // ── Auto→TeleOp turret handoff ───────────────────────────────────────────
+    // Set once when Auto actually starts; consumed once by the first TeleOp built after it.
+    // → TeleOp keeps Auto's final turret position exactly once (rules 3,4).
+    // → Any other start (fresh power-on, standalone or repeat TeleOp) zeroes instead (rules 5,6).
+    private static boolean autoHandoffPending = false;
+    public static void markAutoHandoff() { autoHandoffPending = true; }
+    public static boolean consumeAutoHandoff() {
+        boolean pending = autoHandoffPending;
+        autoHandoffPending = false;
+        return pending;
+    }
+
     // ── Constructors ─────────────────────────────────────────────────────────
 
     /** Auto: odometry via Localizer singleton, resets encoder. */

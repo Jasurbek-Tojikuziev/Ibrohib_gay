@@ -67,6 +67,11 @@ public class Robot {
         shooter = new Shooter(hardwareMap);
         shooter.setFollower(follower); // for the in-zone feed-power check
         turret = new Turret(hardwareMap, follower, vision);
+        // Auto→TeleOp turret handoff: keep Auto's final turret position exactly once.
+        // Any other start (fresh power-on, standalone or repeat TeleOp) → current physical becomes 0°.
+        if (!Turret.consumeAutoHandoff()) {
+            turret.resetEncoder();
+        }
         Pose goal = FieldConstants.getGoal(isRedAlliance);
         Pose tag = FieldConstants.getTag(isRedAlliance);
         turret.setGoalPose(goal);

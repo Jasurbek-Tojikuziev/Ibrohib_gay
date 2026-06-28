@@ -16,9 +16,9 @@ import org.firstinspires.ftc.teamcode.OpModes.auto.AutoBase;
 public class BlueClose extends AutoBase {
 
     private PathChain path1, path2, path3, path4, path5, path6,
-                      path7, path8, path9,     // gate cycle 1: out / collect-curve / back
-                      path10, path11, path12,  // gate cycle 2
-                      path13, path14, path15,  // gate cycle 3
+                      path7, path9,            // gate cycle 1: out(→gate, continuous) / back
+                      path10, path12,          // gate cycle 2
+                      path13, path15,          // gate cycle 3
                       path16;                  // final reposition
 
     @Override protected boolean isRedAlliance() { return false; }
@@ -28,9 +28,17 @@ public class BlueClose extends AutoBase {
     // Auto-only, no TeleOp effect. More negative = aim more LEFT.
     private static final double TURRET_OFFSET_DEG = -2.5;
 
+    // ── Gate push (momentum + stall detection) ───────────────────────────────
+    // The gate approach drives INTO the gate (see path7/10/13 final point). We advance the instant
+    // the robot stalls against it (velocity ~0) — fast, and it can never hang because we don't wait
+    // to "arrive" at the endpoint.
+    private static final double GATE_STALL_VEL     = 4.0; // in/s — below this = stalled at the gate
+    private static final double GATE_PUSH_MIN_TIME = 0.6; // s — ignore initial acceleration before checking stall
+    private static final double GATE_PUSH_MAX_TIME = 3.0; // s — absolute backstop so it can never hang
+
     @Override
     protected void onStart() {
-        turret.setAutoAimOffset(TURRET_OFFSET_DEG);
+        autoAimOffsetDeg = TURRET_OFFSET_DEG;
     }
 
     @Override
@@ -62,7 +70,7 @@ public class BlueClose extends AutoBase {
 
         // Path 5 — (24.109, 63.100) → (17.545, 63.100), heading -90°
         path5 = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(24.109, 63.100), new Pose(17.545, 63.100)))
+                .addPath(new BezierLine(new Pose(24.109, 63.100), new Pose(18, 63.100)))
                 .setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90))
                 .build();
 
@@ -73,12 +81,11 @@ public class BlueClose extends AutoBase {
                 .build();
 
         // ── Gate cycle 1 ──────────────────────────────────────────────────────
+        // path7 — out to the gate as ONE continuous path (no mid-stop → no stall on the final segment)
         path7 = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(49.836, 75.236), new Pose(15.636, 46.873)))
+                .addPath(new BezierLine(new Pose(49.836, 75.236), new Pose(15.636, 50.873)))
                 .setLinearHeadingInterpolation(Math.toRadians(-145), Math.toRadians(155))
-                .build();
-        path8 = follower.pathBuilder()
-                .addPath(new BezierCurve(new Pose(15.636, 46.873), new Pose(12.118, 47.318), new Pose(6.040, 50.091)))
+                .addPath(new BezierLine(new Pose(15.636, 50.873), new Pose(6.040, 50.091)))
                 .setLinearHeadingInterpolation(Math.toRadians(154), Math.toRadians(154))
                 .build();
         path9 = follower.pathBuilder()
@@ -88,11 +95,9 @@ public class BlueClose extends AutoBase {
 
         // ── Gate cycle 2 (same as cycle 1) ─────────────────────────────────────
         path10 = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(49.836, 75.236), new Pose(15.636, 46.873)))
+                .addPath(new BezierLine(new Pose(49.836, 75.236), new Pose(15.636, 50.873)))
                 .setLinearHeadingInterpolation(Math.toRadians(-145), Math.toRadians(155))
-                .build();
-        path11 = follower.pathBuilder()
-                .addPath(new BezierCurve(new Pose(15.636, 46.873), new Pose(12.118, 47.318), new Pose(6.040, 50.091)))
+                .addPath(new BezierLine(new Pose(15.636, 50.873), new Pose(6.040, 50.091)))
                 .setLinearHeadingInterpolation(Math.toRadians(154), Math.toRadians(154))
                 .build();
         path12 = follower.pathBuilder()
@@ -102,11 +107,9 @@ public class BlueClose extends AutoBase {
 
         // ── Gate cycle 3 (same as cycle 1) ─────────────────────────────────────
         path13 = follower.pathBuilder()
-                .addPath(new BezierLine(new Pose(49.836, 75.236), new Pose(15.636, 46.873)))
+                .addPath(new BezierLine(new Pose(49.836, 75.236), new Pose(15.636, 50.873)))
                 .setLinearHeadingInterpolation(Math.toRadians(-145), Math.toRadians(155))
-                .build();
-        path14 = follower.pathBuilder()
-                .addPath(new BezierCurve(new Pose(15.636, 46.873), new Pose(12.118, 47.318), new Pose(6.5, 50.091)))
+                .addPath(new BezierLine(new Pose(15.636, 50.873), new Pose(6.5, 50.091)))
                 .setLinearHeadingInterpolation(Math.toRadians(154), Math.toRadians(154))
                 .build();
         path15 = follower.pathBuilder()
@@ -139,22 +142,22 @@ public class BlueClose extends AutoBase {
             case 9:  if (h.timePassed(1.0)) { follower.followPath(path7, true); setPathState(10); } break;
 
             // Gate cycle 1
-            case 10: if (h.pathDone(0)) { intake.on(); follower.followPath(path8, true); setPathState(11); } break;
-            case 11: if (h.pathDone(0)) { setPathState(111); } break;                       // arrived at gate
+            case 10: if ((h.timePassed(GATE_PUSH_MIN_TIME) && follower.getVelocity().getMagnitude() < GATE_STALL_VEL)
+                         || h.timePassed(GATE_PUSH_MAX_TIME)) { intake.on(); setPathState(111); } break; // pushed/stalled at gate
             case 111: if (h.timePassed(1.5)) { follower.followPath(path9, true); setPathState(12); } break; // dwell 1.5s collecting
             case 12: if (h.pathDone(0)) { intake.off(); shooter.startShoot(); setPathState(13); } break; // SHOOT
             case 13: if (h.timePassed(1.0)) { follower.followPath(path10, true); setPathState(14); } break;
 
             // Gate cycle 2
-            case 14: if (h.pathDone(0)) { intake.on(); follower.followPath(path11, true); setPathState(15); } break;
-            case 15: if (h.pathDone(0)) { setPathState(151); } break;                       // arrived at gate
+            case 14: if ((h.timePassed(GATE_PUSH_MIN_TIME) && follower.getVelocity().getMagnitude() < GATE_STALL_VEL)
+                         || h.timePassed(GATE_PUSH_MAX_TIME)) { intake.on(); setPathState(151); } break; // pushed/stalled at gate
             case 151: if (h.timePassed(1.5)) { follower.followPath(path12, true); setPathState(16); } break; // dwell 1.5s collecting
             case 16: if (h.pathDone(0)) { intake.off(); shooter.startShoot(); setPathState(17); } break; // SHOOT
             case 17: if (h.timePassed(1.0)) { follower.followPath(path13, true); setPathState(18); } break;
 
             // Gate cycle 3
-            case 18: if (h.pathDone(0)) { intake.on(); follower.followPath(path14, true); setPathState(19); } break;
-            case 19: if (h.pathDone(0)) { setPathState(191); } break;                       // arrived at gate
+            case 18: if ((h.timePassed(GATE_PUSH_MIN_TIME) && follower.getVelocity().getMagnitude() < GATE_STALL_VEL)
+                         || h.timePassed(GATE_PUSH_MAX_TIME)) { intake.on(); setPathState(191); } break; // pushed/stalled at gate
             case 191: if (h.timePassed(1.5)) { follower.followPath(path15, true); setPathState(20); } break; // dwell 1.5s collecting
             case 20: if (h.pathDone(0)) { intake.off(); shooter.startShoot(); setPathState(21); } break; // SHOOT
             case 21: if (h.timePassed(1.0)) { follower.followPath(path16, true); setPathState(22); } break;

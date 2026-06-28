@@ -4,73 +4,62 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Servo;
 
-import org.firstinspires.ftc.teamcode.SubSystems.Intake;
-
 @TeleOp(name="[TEST] Servo Tester", group="Testers")
 public class ServoTester extends LinearOpMode {
 
     private Servo shooterHood;
     private Servo shooterStop;
-    private Servo shooterStop1;
-    private Intake intake;
+
+    private double stopPos  = 0.55; // start closed
+    private boolean prevUp, prevDown, prevLeft, prevRight, prevX, prevY;
 
     @Override
     public void runOpMode() {
-//        shooterHood = hardwareMap.get(Servo.class, "shooterHood");
-//        shooterStop = hardwareMap.get(Servo.class, "shooterStop");
-//        shooterStop.setDirection(Servo.Direction.FORWARD);
-//        shooterStop1 = hardwareMap.get(Servo.class, "shooterStop1");
-          shooterHood = hardwareMap.get(Servo.class, "shooterHood");
-        intake = new Intake(hardwareMap);
+        shooterHood = hardwareMap.get(Servo.class, "shooterHood");
+        shooterStop = hardwareMap.get(Servo.class, "shooterStop");
 
-        telemetry.addData("Status", "Ready!");
-        telemetry.addLine("A = 0.0 (Closed)");
-        telemetry.addLine("B = 1.0 (Open)");
-        telemetry.addLine("Right Trigger = Intake ON");
+        shooterStop.setPosition(stopPos);
+
+        telemetry.addLine("Ready.");
         telemetry.update();
 
         waitForStart();
 
         while (opModeIsActive()) {
-            // Hood control
-//            if (gamepad1.a) {
-//                shooterHood.setPosition(0.0);
-//            } else if (gamepad1.b) {
-//                shooterHood.setPosition(0.5);
-//            }
 
-            // Stop control
-            if (gamepad1.dpad_down) {
-//                shooterStop.setPosition(1);
-//                shooterStop1.setPosition(0.0);
-                shooterHood.setPosition(0);
-            } else if (gamepad1.dpad_up) {
-                shooterHood.setPosition(1);
-//                shooterStop1.setPosition(0.29);
-//                shooterStop.setPosition(0.9);
-            }
+            // ── Hood (dpad up / down) ────────────────────────────────────────
+            boolean up   = gamepad1.dpad_up;
+            boolean down = gamepad1.dpad_down;
+            if (up   && !prevUp)   shooterHood.setPosition(1.0);
+            if (down && !prevDown) shooterHood.setPosition(0.0);
 
-            // Intake control
-            if (gamepad1.right_trigger > 0.1) {
-                intake.on();
-            } else {
-                intake.off();
-            }
+            // ── ShooterStop presets (X = closed, Y = open) ──────────────────
+            boolean x = gamepad1.x;
+            boolean y = gamepad1.y;
+            if (x && !prevX) { stopPos = 0.55;  shooterStop.setPosition(stopPos); }
+            if (y && !prevY) { stopPos = 0.35;  shooterStop.setPosition(stopPos); }
 
-            // Telemetry
+            // ── ShooterStop step (dpad left = -0.1, dpad right = +0.1) ─────
+            boolean left  = gamepad1.dpad_left;
+            boolean right = gamepad1.dpad_right;
+            if (left  && !prevLeft)  { stopPos = Math.max(0.0, stopPos - 0.1); shooterStop.setPosition(stopPos); }
+            if (right && !prevRight) { stopPos = Math.min(1.0, stopPos + 0.1); shooterStop.setPosition(stopPos); }
+
+            prevUp = up; prevDown = down; prevLeft = left; prevRight = right; prevX = x; prevY = y;
+
             telemetry.addLine("=== SERVO TESTER ===");
             telemetry.addLine();
-//            telemetry.addData("Hood Position", "%.3f", shooterHood.getPosition());
-//            telemetry.addData("Stop Position", "%.3f", shooterStop.getPosition());
-//            telemetry.addData("Intake", gamepad1.right_trigger > 0.1 ? "ON" : "OFF");
+            telemetry.addLine("--- Hood ---");
+            telemetry.addLine("  Dpad UP   = 1.0 (open)");
+            telemetry.addLine("  Dpad DOWN = 0.0 (closed)");
+            telemetry.addData("  Hood pos", "%.3f", shooterHood.getPosition());
             telemetry.addLine();
-            telemetry.addLine("HOOD: A=0.0 | B=1.0");
-            telemetry.addLine("STOP: X=0.0 | Y=0.29");
-            telemetry.addLine("INTAKE: Right Trigger");
+            telemetry.addLine("--- ShooterStop ---");
+            telemetry.addLine("  X  = 0.55 (closed)");
+            telemetry.addLine("  Y  = 0.35 (shooting/open)");
+            telemetry.addLine("  Dpad LEFT = -0.1   Dpad RIGHT = +0.1");
+            telemetry.addData("  Stop pos", "%.3f", stopPos);
             telemetry.update();
         }
-
-        // Cleanup
-        intake.off();
     }
 }
